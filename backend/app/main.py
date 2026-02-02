@@ -263,7 +263,7 @@ async def export_document(document_id: str, format: str = "json"):
         if document is None:
             raise HTTPException(status_code=404, detail="Document not found")
         document_status = str(document.status)
-        if document_status != DocumentStatus.validated.value:
+        if document_status not in (DocumentStatus.validated.value, DocumentStatus.summarized.value):
             raise HTTPException(status_code=409, detail="Document not validated")
 
         validated_text = document.validated_text if document.validated_text is not None else ""

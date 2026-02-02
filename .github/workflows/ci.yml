@@ -10,29 +10,41 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.10"
+
       - name: Install system dependencies
-        run: sudo apt-get update && sudo apt-get install -y poppler-utils
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libgl1 libglib2.0-0 libsm6 libxrender1 libxext6 libgomp1 poppler-utils
+
       - name: Install backend dependencies
-        run: pip install -r backend/requirements.txt
+        run: pip install --no-cache-dir -r backend/requirements.txt
+
       - name: Run backend tests
-        run: pytest backend/tests
+        run: pytest -q
+        working-directory: backend
 
   frontend-tests:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "18"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
       - name: Install frontend dependencies
         run: npm ci
         working-directory: frontend
+
       - name: Run frontend tests
         run: npm test
         working-directory: frontend
