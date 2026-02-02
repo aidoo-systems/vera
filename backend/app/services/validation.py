@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 from datetime import datetime
+import json
+import logging
 import uuid
 from sqlalchemy import select
 
 from app.db.session import Base, engine, get_session
-from app.models.documents import Correction, Document, Token
+from app.models.documents import AuditLog, Correction, Document, Token
 from app.schemas.documents import DocumentStatus
 
 
@@ -14,6 +16,7 @@ def apply_corrections(
     corrections: list[dict],
     reviewed_token_ids: list[str],
     review_complete: bool,
+    structured_fields: dict[str, str] | None = None,
 ) -> tuple[str, DocumentStatus, datetime | None]:
     Base.metadata.create_all(bind=engine)
     corrections_by_token = {item["token_id"]: item["corrected_text"] for item in corrections}
@@ -23,6 +26,7 @@ def apply_corrections(
         document = session.get(Document, document_id)
         if document is None:
             raise ValueError("document_not_found")
+        logger.debug("Apply corrections document_id=%s", document_id)
 
         tokens = session.execute(
             select(Token)
@@ -81,6 +85,54 @@ def apply_corrections(
             validated_at = None
             status_value = DocumentStatus.review_in_progress
 
+        if structured_fields is not None:
+            session.execute(
+                Document.__table__.update()
+                .where(Document.id == document_id)
+                .values(structured_fields=json.dumps(structured_fields))
+            )
+
+        if corrections_by_token:
+            logger.info("Corrections applied document_id=%s count=%s", document_id, len(corrections_by_token))
+            session.add(
+                AuditLog(
+                    id=uuid.uuid4().hex,
+                    document_id=document_id,
+                    event_type="corrections_applied",
+                    detail=json.dumps(
+                        {
+                            "count": len(corrections_by_token),
+                            "token_ids": list(corrections_by_token.keys()),
+                        }
+                    ),
+                )
+            )
+
+        session.add(
+            AuditLog(
+                id=uuid.uuid4().hex,
+                document_id=document_id,
+                event_type="review_completed" if review_complete else "review_saved",
+                detail=json.dumps(
+                    {
+                        "review_complete": review_complete,
+                        "reviewed_tokens": len(reviewed_set),
+                    }
+                ),
+            )
+        )
+
+        if structured_fields is not None:
+            session.add(
+                AuditLog(
+                    id=uuid.uuid4().hex,
+                    document_id=document_id,
+                    event_type="fields_updated",
+                    detail=json.dumps({"field_count": len(structured_fields)}),
+                )
+            )
+
         session.commit()
 
     return validated_text, status_value, validated_at
+logger = logging.getLogger("vera.validation")

@@ -1,16 +1,20 @@
 from __future__ import annotations
 
+import json
+import logging
 import re
+import uuid
 
 from sqlalchemy import select, update
 
 from app.db.session import Base, engine, get_session
-from app.models.documents import Document
+from app.models.documents import AuditLog, Document
 from app.schemas.documents import DocumentStatus
 
 
 def build_summary(document_id: str) -> dict:
     Base.metadata.create_all(bind=engine)
+    logger.info("Build summary document_id=%s", document_id)
     with get_session() as session:
         document = session.get(Document, document_id)
         if document is None:
@@ -88,8 +92,25 @@ def build_summary(document_id: str) -> dict:
         "line_items": line_items,
     }
 
+    with get_session() as session:
+        session.execute(
+            update(Document)
+            .where(Document.id == document_id)
+            .values(structured_fields=json.dumps(structured_fields))
+        )
+        session.add(
+            AuditLog(
+                id=uuid.uuid4().hex,
+                document_id=document_id,
+                event_type="summary_generated",
+                detail=json.dumps({"field_count": len(structured_fields)}),
+            )
+        )
+        session.commit()
+
     return {
         "bullet_summary": bullet_summary,
         "structured_fields": structured_fields,
         "validation_status": DocumentStatus.validated,
     }
+logger = logging.getLogger("vera.summary")

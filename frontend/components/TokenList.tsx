@@ -9,29 +9,21 @@ type TokenListProps = {
 
 export function TokenList({ tokens, selectedTokenId, onSelect, reviewedTokenIds }: TokenListProps) {
   return (
-    <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "grid", gap: 8 }}>
+    <ul className="token-list">
       {tokens.map((token) => (
         <li key={token.id}>
           <button
             type="button"
             onClick={() => onSelect(token.id)}
-            style={{
-              width: "100%",
-              textAlign: "left",
-              borderRadius: 12,
-              padding: "10px 12px",
-              border: token.id === selectedTokenId ? "2px solid #1f4b99" : "1px solid #d6c6a4",
-              background: token.confidenceLabel === "low" || token.forcedReview ? "#fdeaea" : "#fff6da",
-              fontFamily: "inherit",
-            }}
+            className={`token-button${token.id === selectedTokenId ? " is-selected" : ""}`}
           >
-            <div style={{ fontWeight: 600, display: "flex", justifyContent: "space-between", gap: 8 }}>
+            <div className="token-title">
               <span>{token.text || "(empty)"}</span>
-              <span style={{ fontSize: 12, opacity: 0.7 }}>
+              <span className="token-meta">
                 {reviewedTokenIds.has(token.id) ? "Reviewed" : "Needs review"}
               </span>
             </div>
-            <div style={{ fontSize: 12, opacity: 0.75 }}>
+            <div className="token-meta">
               {token.confidenceLabel} · {token.confidence.toFixed(2)} · {token.flags.join(", ") || "no flags"}
             </div>
           </button>

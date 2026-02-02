@@ -1,10 +1,10 @@
 # VERA — Validated Extraction & Review Assistant
 
-VERA is a verification-first OCR application that extracts text from document images, highlights low-confidence interpretations, allows the user to correct them, and only then produces trustworthy summaries and structured output.
+VERA is a verification-first OCR application that extracts text from document images and PDFs, highlights low-confidence interpretations, lets users confirm corrections, and produces trustworthy summaries and structured output.
 
-## v1 Scope (Non-negotiable)
-- Inputs: JPG, PNG
-- Target documents: receipts, invoices
+## v1 Scope
+- Inputs: JPG, PNG, PDF
+- Target documents: receipts, invoices, general business documents
 - Language: English only
 
 ## Architecture
@@ -18,11 +18,15 @@ VERA is a verification-first OCR application that extracts text from document im
 
 Validation is a hard gate. Summaries and exports are only available after explicit review completion.
 
-## Repository Structure
-See `vera/` layout as specified in the project brief. The backend and frontend are intentionally simple and readable.
+## Getting Started (Docker)
+1. `docker compose up -d --build`
+2. Frontend: `http://localhost:3000`
+3. Backend: `http://localhost:4000`
 
-## Getting Started (Skeleton)
-1. Backend: `cd vera/backend` then install requirements and run `uvicorn app.main:app --reload`.
-2. Frontend: `cd vera/frontend` then initialize Next.js and wire the components.
+## Getting Started (Local)
+1. Backend: `cd backend` → `pip install -r requirements.txt` → `uvicorn app.main:app --reload --port 8000`
+2. Frontend: `cd frontend` → `npm install` → `npm run dev`
 
-This repo is intentionally a scaffold for v1. The next steps are to implement OCR in the backend, then build the frontend overlay and validation flow.
+## Notes
+- PDF support requires Poppler (Docker image installs it automatically).
+- Summaries and exports are gated behind explicit review completion.

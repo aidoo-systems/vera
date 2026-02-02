@@ -12,6 +12,7 @@ type DocumentPayload = {
   image_width: number;
   image_height: number;
   status: string;
+  structured_fields: Record<string, string>;
   tokens: Array<{
     id: string;
     line_id: string;
@@ -48,6 +49,7 @@ export default function HomePage() {
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showAllTokens, setShowAllTokens] = useState(false);
 
   const allTokens = useMemo<TokenBox[]>(() => {
     if (!documentData) return [];
@@ -78,6 +80,10 @@ export default function HomePage() {
 
   const selectedToken = flaggedTokens.find((token) => token.id === selectedTokenId) ?? null;
   const correctionValue = selectedToken ? corrections[selectedToken.id] ?? selectedToken.text : "";
+  const displayTokens = showAllTokens ? allTokens : flaggedTokens;
+
+  const reviewedCount = flaggedTokens.filter((token) => reviewedTokenIds.has(token.id)).length;
+  const reviewProgress = flaggedTokens.length ? Math.round((reviewedCount / flaggedTokens.length) * 100) : 0;
 
   const uploadDocument = async () => {
     if (!file) return;
@@ -106,7 +112,9 @@ export default function HomePage() {
       setReviewedTokenIds(new Set());
       setSelectedTokenId(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Upload failed");
+      const message = err instanceof Error ? err.message : "Upload failed";
+      console.error("Upload failed", err);
+      setError(message);
     } finally {
       setLoading(false);
     }
@@ -153,13 +161,15 @@ export default function HomePage() {
         setSummary(summaryData);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Validation failed");
+      const message = err instanceof Error ? err.message : "Validation failed";
+      console.error("Validation failed", err);
+      setError(message);
     } finally {
       setLoading(false);
     }
   };
 
-  const exportDocument = async (format: "json" | "csv") => {
+  const exportDocument = async (format: "json" | "csv" | "txt") => {
     if (!documentData) return;
     setLoading(true);
     setError(null);
@@ -179,7 +189,9 @@ export default function HomePage() {
       link.remove();
       URL.revokeObjectURL(url);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Export failed");
+      const message = err instanceof Error ? err.message : "Export failed";
+      console.error("Export failed", err);
+      setError(message);
     } finally {
       setLoading(false);
     }
@@ -200,191 +212,180 @@ export default function HomePage() {
   };
 
   return (
-    <main
-      style={{
-        minHeight: "100vh",
-        padding: "28px",
-        fontFamily: '"Spectral", "Georgia", serif',
-        background: "linear-gradient(120deg, #f8efe2 0%, #f0f6ff 100%)",
-        color: "#2b2b2b",
-      }}
-    >
-      <header style={{ marginBottom: 24 }}>
-        <div style={{ fontSize: 12, letterSpacing: "0.24em", textTransform: "uppercase" }}>VERA</div>
-        <h1 style={{ margin: "8px 0", fontSize: 36 }}>Validated Extraction &amp; Review Assistant</h1>
-        <p style={{ maxWidth: 640, opacity: 0.8 }}>
-          Review only the uncertain tokens. Confirm everything before summaries become available.
-        </p>
+    <>
+      <header className="header">
+        <div className="header-left">
+          <span className={`status-dot ${documentData ? "status-ready" : "status-indexing"}`} />
+          <span className="logo">VERA</span>
+          <span className="header-divider">/</span>
+          <span className="header-title">Verification-first OCR</span>
+        </div>
+        <div className="header-right">
+          <span className="header-title">JPG, PNG, PDF</span>
+        </div>
       </header>
 
-      <section style={{ display: "grid", gap: 20, gridTemplateColumns: "minmax(0, 1.2fr) minmax(0, 0.8fr)" }}>
-        <div style={{ display: "grid", gap: 16 }}>
-          <div
-            style={{
-              display: "grid",
-              gap: 12,
-              padding: 16,
-              borderRadius: 16,
-              background: "#fff9ef",
-              border: "1px solid #e6d5b2",
-            }}
-          >
-            <div style={{ fontSize: 12, letterSpacing: "0.2em", textTransform: "uppercase", color: "#7a5c22" }}>
-              Upload
+      <main className="vera-main">
+        <section className="vera-stack">
+          <div className="card">
+            <div className="card-header">
+              <div className="card-title">Upload</div>
             </div>
-            <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-              <input
-                type="file"
-                accept="image/png,image/jpeg"
-                onChange={(event) => setFile(event.target.files?.[0] ?? null)}
-              />
-              <button
-                type="button"
-                onClick={uploadDocument}
-                disabled={!file || loading}
-                style={{
-                  padding: "8px 12px",
-                  borderRadius: 10,
-                  border: "none",
-                  background: "#1f4b99",
-                  color: "#fff",
-                  fontWeight: 600,
-                  cursor: "pointer",
-                }}
-              >
-                {loading ? "Uploading..." : "Run OCR"}
-              </button>
+            <div className="card-body vera-stack">
+              <div className="vera-upload-actions">
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg,application/pdf"
+                  onChange={(event) => setFile(event.target.files?.[0] ?? null)}
+                />
+                <button type="button" onClick={uploadDocument} disabled={!file || loading} className="btn btn-primary">
+                  {loading ? "Uploading..." : "Run OCR"}
+                </button>
+                <label className="form-check">
+                  <input
+                    type="checkbox"
+                    checked={showAllTokens}
+                    onChange={(event) => setShowAllTokens(event.target.checked)}
+                  />
+                  <span className="form-check-label">Show all tokens</span>
+                </label>
+              </div>
+              {error ? <div className="alert alert-error">{error}</div> : null}
             </div>
-            {error ? <div style={{ color: "#c0392b" }}>{error}</div> : null}
           </div>
 
-          {documentData ? (
-            <ImageOverlay
-              imageUrl={documentData.image_url}
-              imageWidth={documentData.image_width}
-              imageHeight={documentData.image_height}
-              tokens={flaggedTokens}
-              selectedTokenId={selectedTokenId}
-              onSelect={setSelectedTokenId}
-            />
-          ) : (
-            <div style={{ padding: 24, borderRadius: 16, background: "#f7f1e6", color: "#6b5b3e" }}>
-              Upload a receipt or invoice image to start the review flow.
+          <div className="vera-grid">
+            <div className="vera-stack">
+              <div className="card">
+                <div className="card-header">
+                  <div className="card-title">Document</div>
+                </div>
+                <div className="card-body">
+                  {documentData ? (
+                    <ImageOverlay
+                      imageUrl={documentData.image_url}
+                      imageWidth={documentData.image_width}
+                      imageHeight={documentData.image_height}
+                      tokens={displayTokens}
+                      selectedTokenId={selectedTokenId}
+                      onSelect={setSelectedTokenId}
+                    />
+                  ) : (
+                    <div className="upload-zone">
+                      <div className="upload-text">Drop a file to begin</div>
+                      <div className="upload-hint">Supports JPG, PNG, and PDF</div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="card">
+                <div className="card-header">
+                  <div className="card-title">Summary</div>
+                </div>
+                <div className="card-body">
+                  <SummaryView bulletSummary={summary?.bullet_summary ?? []} />
+                </div>
+              </div>
             </div>
-          )}
 
-          <SummaryView bulletSummary={summary?.bullet_summary ?? []} structuredFields={summary?.structured_fields ?? {}} />
-        </div>
+            <aside className="vera-stack">
+              <div className="card">
+                <div className="card-header">
+                  <div className="card-title">Review</div>
+                </div>
+                <div className="card-body vera-stack">
+                  <div className="form-hint">
+                    {flaggedTokens.length} uncertain items · {reviewedCount} confirmed
+                  </div>
+                  <div className="progress-bar">
+                    <div className="progress-fill" style={{ width: `${reviewProgress}%` }} />
+                  </div>
+                  <TokenList
+                    tokens={flaggedTokens}
+                    selectedTokenId={selectedTokenId}
+                    onSelect={setSelectedTokenId}
+                    reviewedTokenIds={reviewedTokenIds}
+                  />
+                </div>
+              </div>
 
-        <aside
-          style={{
-            background: "#fff9ef",
-            borderRadius: 18,
-            padding: 18,
-            border: "1px solid #e6d5b2",
-            display: "grid",
-            gap: 18,
-            alignContent: "start",
-          }}
-        >
-          <div style={{ display: "grid", gap: 8 }}>
-            <div style={{ fontSize: 12, letterSpacing: "0.2em", textTransform: "uppercase", color: "#7a5c22" }}>
-              Review Queue
-            </div>
-            <div style={{ fontSize: 14, opacity: 0.8 }}>{flaggedTokens.length} tokens need review</div>
-            <TokenList
-              tokens={flaggedTokens}
-              selectedTokenId={selectedTokenId}
-              onSelect={setSelectedTokenId}
-              reviewedTokenIds={reviewedTokenIds}
-            />
+              <div className="card">
+                <div className="card-header">
+                  <div className="card-title">Edit</div>
+                </div>
+                <div className="card-body vera-stack">
+                  <CorrectionEditor
+                    token={selectedToken}
+                    value={correctionValue}
+                    onChange={(value) => {
+                      if (!selectedToken) return;
+                      setCorrections((prev) => ({ ...prev, [selectedToken.id]: value }));
+                    }}
+                    onSave={(value) => {
+                      if (!selectedToken) return;
+                      setCorrections((prev) => ({ ...prev, [selectedToken.id]: value }));
+                      setReviewedTokenIds((prev) => new Set([...prev, selectedToken.id]));
+                    }}
+                    onMarkReviewed={handleMarkReviewed}
+                    onRevert={handleRevert}
+                  />
+                  <div className="vera-stack">
+                    <button
+                      type="button"
+                      onClick={() => saveProgress(false)}
+                      disabled={!documentData || loading}
+                      className="btn btn-secondary"
+                    >
+                      Save progress
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => saveProgress(true)}
+                      disabled={!documentData || loading}
+                      className="btn btn-primary"
+                    >
+                      Confirm and generate summary
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="card">
+                <div className="card-header">
+                  <div className="card-title">Export</div>
+                </div>
+                <div className="card-body vera-stack">
+                  <button
+                    type="button"
+                    onClick={() => exportDocument("json")}
+                    disabled={!summary || loading}
+                    className="btn btn-secondary"
+                  >
+                    Export JSON
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => exportDocument("csv")}
+                    disabled={!summary || loading}
+                    className="btn btn-secondary"
+                  >
+                    Export CSV
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => exportDocument("txt")}
+                    disabled={!summary || loading}
+                    className="btn btn-secondary"
+                  >
+                    Export TXT
+                  </button>
+                </div>
+              </div>
+            </aside>
           </div>
-
-          <div style={{ borderTop: "1px solid #e6d5b2", paddingTop: 16 }}>
-            <CorrectionEditor
-              token={selectedToken}
-              value={correctionValue}
-              onChange={(value) => {
-                if (!selectedToken) return;
-                setCorrections((prev) => ({ ...prev, [selectedToken.id]: value }));
-              }}
-              onSave={(value) => {
-                if (!selectedToken) return;
-                setCorrections((prev) => ({ ...prev, [selectedToken.id]: value }));
-                setReviewedTokenIds((prev) => new Set([...prev, selectedToken.id]));
-              }}
-              onMarkReviewed={handleMarkReviewed}
-              onRevert={handleRevert}
-            />
-          </div>
-
-          <div style={{ display: "grid", gap: 10 }}>
-            <button
-              type="button"
-              onClick={() => saveProgress(false)}
-              disabled={!documentData || loading}
-              style={{
-                marginTop: 8,
-                padding: "12px 14px",
-                borderRadius: 12,
-                border: "1px solid #d6c6a4",
-                background: "#fff",
-                fontWeight: 600,
-                cursor: "pointer",
-              }}
-            >
-              Save progress
-            </button>
-            <button
-              type="button"
-              onClick={() => saveProgress(true)}
-              disabled={!documentData || loading}
-              style={{
-                padding: "12px 14px",
-                borderRadius: 12,
-                border: "none",
-                background: "#1f4b99",
-                color: "#fff",
-                fontWeight: 600,
-                cursor: "pointer",
-              }}
-            >
-              Confirm review and generate summary
-            </button>
-          </div>
-
-          <div style={{ borderTop: "1px solid #e6d5b2", paddingTop: 16, display: "grid", gap: 10 }}>
-            <button
-              type="button"
-              onClick={() => exportDocument("json")}
-              disabled={!summary || loading}
-              style={{
-                padding: "10px 12px",
-                borderRadius: 10,
-                border: "1px solid #d6c6a4",
-                background: "#fff",
-                cursor: "pointer",
-              }}
-            >
-              Export JSON
-            </button>
-            <button
-              type="button"
-              onClick={() => exportDocument("csv")}
-              disabled={!summary || loading}
-              style={{
-                padding: "10px 12px",
-                borderRadius: 10,
-                border: "1px solid #d6c6a4",
-                background: "#fff",
-                cursor: "pointer",
-              }}
-            >
-              Export CSV
-            </button>
-          </div>
-        </aside>
-      </section>
-    </main>
+        </section>
+      </main>
+    </>
   );
 }

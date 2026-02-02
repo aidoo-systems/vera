@@ -5,16 +5,17 @@ services:
     build: ./backend
     environment:
       - BACKEND_PORT=${BACKEND_PORT:-8000}
-      - DATA_DIR=${DATA_DIR:-./data}
-      - SQLITE_PATH=${SQLITE_PATH:-./data/vera.db}
+      - DATA_DIR=${DATA_DIR:-/data}
+      - SQLITE_PATH=${SQLITE_PATH:-/data/vera.db}
     volumes:
-      - ./data:${DATA_DIR:-./data}
+      - ./data:${DATA_DIR:-/data}
     ports:
-      - "${BACKEND_PORT:-8000}:8000"
+      - "${BACKEND_PORT:-4000}:8000"
   frontend:
     build: ./frontend
     environment:
       - FRONTEND_PORT=${FRONTEND_PORT:-3000}
+      - NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL:-http://localhost:4000}
     ports:
       - "${FRONTEND_PORT:-3000}:3000"
     depends_on:

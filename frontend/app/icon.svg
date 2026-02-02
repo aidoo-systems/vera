@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="VERA">
+  <rect width="64" height="64" rx="12" fill="#2563eb" />
+  <path
+    d="M18 18h8.4l9.7 22.7L46 18h8l-14.3 30H31z"
+    fill="#ffffff"
+  />
+</svg>

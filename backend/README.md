@@ -4,7 +4,15 @@ FastAPI service for OCR, confidence analysis, validation, and summary generation
 
 ## Run (local)
 1. Install dependencies: `pip install -r requirements.txt`
-2. Start API: `uvicorn app.main:app --reload --port 8000`
+2. Install Poppler for PDF support (required for `pdf2image`).
+3. Start API: `uvicorn app.main:app --reload --port 8000`
+
+## Reset local DB
+If your schema changes, reset the local SQLite data directory:
+`python scripts/reset_db.py`
+
+## Docker
+The Docker image installs Poppler + runtime libraries needed by PaddleOCR/OpenCV.
 
 ## API (v1 contract)
 - `POST /documents/upload`

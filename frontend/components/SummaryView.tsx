@@ -1,19 +1,27 @@
 type SummaryViewProps = {
   bulletSummary: string[];
-  structuredFields: Record<string, string>;
 };
 
-export function SummaryView({ bulletSummary, structuredFields }: SummaryViewProps) {
+export function SummaryView({ bulletSummary }: SummaryViewProps) {
   return (
-    <div>
-      <h2>Summary</h2>
-      <ul>
-        {bulletSummary.map((item, index) => (
-          <li key={index}>{item}</li>
-        ))}
-      </ul>
-      <h3>Structured Fields</h3>
-      <pre>{JSON.stringify(structuredFields, null, 2)}</pre>
+    <div className="vera-stack">
+      {bulletSummary.length === 0 ? (
+        <div className="form-hint">Summary will appear after review is confirmed.</div>
+      ) : (
+        <ul className="summary-list">
+          {bulletSummary.map((item, index) => {
+            const needsInput = item.toLowerCase().includes("not detected");
+            return (
+              <li key={index} className="summary-item">
+                <span className="summary-text">{item}</span>
+                <span className={`badge ${needsInput ? "badge-warning" : "badge-success"}`}>
+                  {needsInput ? "Needs input" : "Verified"}
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      )}
     </div>
   );
 }

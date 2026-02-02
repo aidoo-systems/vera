@@ -15,6 +15,7 @@ class Document(Base):
     image_height = Column(Integer, nullable=False)
     status = Column(String, nullable=False)
     validated_text = Column(Text, nullable=True)
+    structured_fields = Column(Text, nullable=False, default="{}")
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
@@ -44,3 +45,14 @@ class Correction(Base):
     original_text = Column(Text, nullable=False)
     corrected_text = Column(Text, nullable=False)
     confirmed_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+
+class AuditLog(Base):
+    __tablename__ = "audit_logs"
+
+    id = Column(String, primary_key=True, index=True)
+    document_id = Column(String, ForeignKey("documents.id"), index=True, nullable=False)
+    event_type = Column(String, nullable=False)
+    actor = Column(String, nullable=False, default="local_user")
+    detail = Column(Text, nullable=False, default="{}")
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)

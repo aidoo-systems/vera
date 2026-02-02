@@ -51,6 +51,7 @@ class ValidateRequest(BaseModel):
     corrections: list[CorrectionSchema] = Field(default_factory=list)
     reviewed_token_ids: list[str] = Field(default_factory=list)
     review_complete: bool = False
+    structured_fields: dict[str, str] | None = None
 
 
 class ValidateResponse(BaseModel):
@@ -63,3 +64,15 @@ class SummaryResponse(BaseModel):
     bullet_summary: list[str]
     structured_fields: dict[str, str]
     validation_status: DocumentStatus
+
+
+class StructuredFieldsUpdateRequest(BaseModel):
+    structured_fields: dict[str, str] = Field(default_factory=dict)
+
+
+class AuditLogEntry(BaseModel):
+    id: str
+    event_type: str
+    actor: str
+    detail: dict[str, str | int | float | bool | list[str]]
+    created_at: datetime

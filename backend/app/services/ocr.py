@@ -3,13 +3,15 @@ from __future__ import annotations
 from dataclasses import dataclass
 import hashlib
 import json
+import logging
+import uuid
 from typing import Any
 
 from fastapi import UploadFile
 from PIL import Image
 
 from app.db.session import Base, engine, get_session
-from app.models.documents import Document, Token
+from app.models.documents import AuditLog, Document, Token
 from app.schemas.documents import DocumentStatus, TokenConfidenceLabel, TokenSchema
 from app.services.confidence import classify_confidence, detect_forced_flags
 from app.services.storage import save_upload
@@ -66,10 +68,20 @@ def _extract_tokens(image_path: str) -> list[dict]:
     try:
         from paddleocr import PaddleOCR  # type: ignore[import-not-found]
     except ImportError as exc:  # pragma: no cover
+        logger.exception("PaddleOCR import failed")
         raise RuntimeError("paddleocr_not_installed") from exc
 
-    ocr = PaddleOCR(use_angle_cls=True, lang="en", show_log=False)
-    result = ocr.ocr(image_path, cls=True)
+    try:
+        ocr = PaddleOCR(use_angle_cls=True, lang="en", show_log=False)
+    except Exception as exc:  # pragma: no cover
+        logger.exception("OCR init failed")
+        raise RuntimeError("ocr_init_failed") from exc
+
+    try:
+        result = ocr.ocr(image_path, cls=True)
+    except Exception as exc:  # pragma: no cover
+        logger.exception("OCR failed image_path=%s", image_path)
+        raise RuntimeError("ocr_failed") from exc
     tokens: list[dict[str, Any]] = []
 
     for line in result:
@@ -86,11 +98,13 @@ def _extract_tokens(image_path: str) -> list[dict]:
 
             tokens.append({"text": text, "confidence": confidence, "bbox": bbox})
 
+    logger.info("OCR extracted tokens count=%s", len(tokens))
     return tokens
 
 
 async def run_ocr(file: UploadFile) -> OcrResult:
     Base.metadata.create_all(bind=engine)
+    logger.info("OCR start filename=%s", file.filename)
     document_id, image_path, image_url = save_upload(file)
     with Image.open(image_path) as image:
         image_width, image_height = image.size
@@ -106,6 +120,7 @@ async def run_ocr(file: UploadFile) -> OcrResult:
             image_width=image_width,
             image_height=image_height,
             status=DocumentStatus.ocr_done.value,
+            structured_fields=json.dumps({}),
         )
         session.add(document)
 
@@ -148,6 +163,17 @@ async def run_ocr(file: UploadFile) -> OcrResult:
 
         session.commit()
 
+    with get_session() as session:
+        session.add(
+            AuditLog(
+                id=uuid.uuid4().hex,
+                document_id=document_id,
+                event_type="ocr_completed",
+                detail=json.dumps({"token_count": len(token_schemas)}),
+            )
+        )
+        session.commit()
+
     return OcrResult(
         document_id=document_id,
         image_url=image_url,
@@ -156,3 +182,4 @@ async def run_ocr(file: UploadFile) -> OcrResult:
         image_width=image_width,
         image_height=image_height,
     )
+logger = logging.getLogger("vera.ocr")

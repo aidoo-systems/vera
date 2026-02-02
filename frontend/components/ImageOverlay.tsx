@@ -50,32 +50,29 @@ export function ImageOverlay({
   const scaleY = renderedSize.height / safeHeight;
 
   return (
-    <div style={{ position: "relative", borderRadius: 16, overflow: "hidden", background: "#f7f1e6" }}>
+    <div className="image-overlay">
       <img
         ref={imageRef}
         src={imageUrl}
         alt="Uploaded document"
-        style={{ display: "block", width: "100%" }}
       />
       {tokens.map((token) => {
         const [x, y, w, h] = token.bbox;
         const isSelected = token.id === selectedTokenId;
-        const borderColor = token.confidenceLabel === "low" || token.forcedReview ? "#c0392b" : "#f1c40f";
+        const isCritical = token.confidenceLabel === "low" || token.forcedReview;
         return (
           <button
             key={token.id}
             type="button"
             onClick={() => onSelect(token.id)}
+            className={`overlay-token${isSelected ? " is-selected" : ""}${isCritical ? " is-critical" : ""}`}
             style={{
               position: "absolute",
               left: x * scaleX,
               top: y * scaleY,
               width: w * scaleX,
               height: h * scaleY,
-              border: `2px solid ${borderColor}`,
-              background: isSelected ? "rgba(52, 152, 219, 0.2)" : "transparent",
               padding: 0,
-              cursor: "pointer",
             }}
             aria-label={`Token ${token.text}`}
           />
