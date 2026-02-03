@@ -6,6 +6,7 @@ import os
 import logging
 import time
 
+import httpx
 from fastapi import FastAPI, File, HTTPException, UploadFile, Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.middleware.cors import CORSMiddleware
@@ -17,6 +18,7 @@ from sqlalchemy import text as sql_text
 from app.services.storage import save_upload
 from app.services.validation import apply_corrections
 from app.services.summary import build_summary
+from app.services.ollama import list_models, pull_model
 from app.schemas.documents import StructuredFieldsUpdateRequest, ValidateRequest
 from app.db.session import Base, engine, get_session
 from app.models.documents import AuditLog, Document
@@ -244,10 +246,10 @@ async def cancel_document(document_id: str):
 
 
 @app.get("/documents/{document_id}/summary")
-async def get_summary(document_id: str):
+async def get_summary(document_id: str, model: str | None = None):
     logger.info("Summary requested document_id=%s", document_id)
     try:
-        summary = build_summary(document_id)
+        summary = build_summary(document_id, model_override=model)
     except ValueError as error:
         if str(error) == "document_not_found":
             raise HTTPException(status_code=404, detail="Document not found")
@@ -256,6 +258,27 @@ async def get_summary(document_id: str):
         raise
     logger.info("Summary completed document_id=%s", document_id)
     return JSONResponse(summary)
+
+
+@app.get("/llm/models")
+async def get_llm_models():
+    try:
+        models = list_models()
+    except httpx.HTTPError:
+        raise HTTPException(status_code=503, detail="Ollama is not available")
+    return JSONResponse({"models": models})
+
+
+@app.post("/llm/models/pull")
+async def pull_llm_model(payload: dict):
+    model = str(payload.get("model", "")).strip()
+    if not model:
+        raise HTTPException(status_code=400, detail="Model name is required")
+    try:
+        result = pull_model(model)
+    except httpx.HTTPError:
+        raise HTTPException(status_code=503, detail="Failed to pull model from Ollama")
+    return JSONResponse({"status": "ok", "result": result})
 
 
 @app.post("/documents/{document_id}/fields")

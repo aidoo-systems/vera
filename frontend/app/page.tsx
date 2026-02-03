@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { CorrectionEditor } from "../components/CorrectionEditor";
 import { ImageOverlay, type TokenBox } from "../components/ImageOverlay";
+import { OllamaConsole } from "../components/OllamaConsole";
 import { TokenList } from "../components/TokenList";
 import { SummaryView } from "../components/SummaryView";
 
@@ -59,6 +60,7 @@ export default function HomePage() {
   const [pollingEnabled, setPollingEnabled] = useState(true);
   const [processingCanceled, setProcessingCanceled] = useState(false);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
+  const [selectedModel, setSelectedModel] = useState("llama3.1");
   const isProcessing = documentData ? ["uploaded", "processing"].includes(documentData.status) : false;
   const processingActive = isProcessing && pollingEnabled;
   const interactionDisabled = loading || processingActive;
@@ -213,7 +215,10 @@ export default function HomePage() {
       }
 
       if (reviewComplete) {
-        const summaryResponse = await fetch(`${apiBase}/documents/${documentData.document_id}/summary`);
+        const modelParam = selectedModel ? `?model=${encodeURIComponent(selectedModel)}` : "";
+        const summaryResponse = await fetch(
+          `${apiBase}/documents/${documentData.document_id}/summary${modelParam}`
+        );
         if (!summaryResponse.ok) {
           const message = await summaryResponse.text();
           throw new Error(message || "Summary failed");
@@ -552,6 +557,13 @@ export default function HomePage() {
                     documentTypeOptions={documentTypeOptions}
                     documentTypeValue={summary?.structured_fields?.document_type}
                     onDocumentTypeChange={updateDocumentType}
+                    disabled={interactionDisabled}
+                  />
+                  <OllamaConsole
+                    apiBase={apiBase}
+                    selectedModel={selectedModel}
+                    onSelectModel={setSelectedModel}
+                    onToast={pushToast}
                     disabled={interactionDisabled}
                   />
                 </div>

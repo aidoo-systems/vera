@@ -53,8 +53,10 @@ VERA can optionally call an Ollama instance to generate smart summary points. Th
 
 Environment variables:
 - `LLM_SUMMARY_ENABLED` (default: `false`)
-- `OLLAMA_URL` (default: `http://ollama:11434`)
+- `OLLAMA_URL` (default: `http://localhost:11434`)
 - `OLLAMA_MODEL` (default: `llama3.1`)
 
 When enabled, the backend will call `POST /api/generate` on the Ollama URL and use the returned bullet points
 in the Summary view.
+
+If you run the backend in Docker but Ollama runs on your host, set `OLLAMA_URL=http://host.docker.internal:11434`.

@@ -14,7 +14,7 @@ from app.models.documents import AuditLog, Document
 from app.schemas.documents import DocumentStatus
 
 
-def build_summary(document_id: str) -> dict:
+def build_summary(document_id: str, model_override: str | None = None) -> dict:
     Base.metadata.create_all(bind=engine)
     logger.info("Build summary document_id=%s", document_id)
     with get_session() as session:
@@ -146,8 +146,8 @@ def build_summary(document_id: str) -> dict:
         return cleaned_lines[:5] if cleaned_lines else None
 
     def fetch_llm_points(text: str) -> list[str] | None:
-        base_url = os.getenv("OLLAMA_URL", "http://ollama:11434").rstrip("/")
-        model = os.getenv("OLLAMA_MODEL", "llama3.1")
+        base_url = os.getenv("OLLAMA_URL", "http://localhost:11434").rstrip("/")
+        model = model_override or os.getenv("OLLAMA_MODEL", "llama3.1")
         prompt = (
             "Summarize the following document text into 3 to 5 concise bullet points. "
             "Return ONLY a JSON array of strings. Avoid extra commentary.\n\n"
