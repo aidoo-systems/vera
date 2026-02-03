@@ -269,6 +269,15 @@ async def get_llm_models():
     return JSONResponse({"models": models})
 
 
+@app.get("/llm/health")
+async def get_llm_health():
+    try:
+        models = list_models()
+    except httpx.HTTPError:
+        return JSONResponse({"reachable": False, "models": [], "model": os.getenv("OLLAMA_MODEL", "llama3.1")})
+    return JSONResponse({"reachable": True, "models": models, "model": os.getenv("OLLAMA_MODEL", "llama3.1")})
+
+
 @app.post("/llm/models/pull")
 async def pull_llm_model(payload: dict):
     model = str(payload.get("model", "")).strip()

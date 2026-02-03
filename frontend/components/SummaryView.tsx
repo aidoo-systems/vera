@@ -1,10 +1,6 @@
 type SummaryViewProps = {
   bulletSummary: string[];
   structuredFields?: Record<string, string>;
-  documentTypeOptions?: string[];
-  documentTypeValue?: string;
-  onDocumentTypeChange?: (value: string) => void;
-  disabled?: boolean;
 };
 
 function isNotDetected(value: string | undefined) {
@@ -14,17 +10,13 @@ function isNotDetected(value: string | undefined) {
 export function SummaryView({
   bulletSummary,
   structuredFields,
-  documentTypeOptions = [],
-  documentTypeValue,
-  onDocumentTypeChange,
-  disabled = false,
 }: SummaryViewProps) {
   const hasStructuredFields = structuredFields && Object.keys(structuredFields).length > 0;
   const keywords = structuredFields?.keywords ?? "Not detected";
   const keywordList = keywords === "Not detected" ? [] : keywords.split(", ");
   const summaryPoints = structuredFields?.summary_points ?? "Not detected";
   const summaryPointList = summaryPoints === "Not detected" ? [] : summaryPoints.split(" | ");
-  const documentType = documentTypeValue ?? structuredFields?.document_type ?? "Unknown";
+  const documentType = structuredFields?.document_type ?? "Unknown";
   const typeConfidence = structuredFields?.document_type_confidence ?? "low";
   const reviewNote = bulletSummary.find((item) => item.toLowerCase().includes("reviewed"));
 
@@ -46,29 +38,10 @@ export function SummaryView({
                 <div className="summary-label">Words</div>
               </div>
               <div className="summary-metric">
-                <label className="summary-label" htmlFor="document-type-select">
-                  Type · {typeConfidence}
-                </label>
-                <select
-                  id="document-type-select"
-                  className="summary-select"
-                  value={documentType}
-                  onChange={(event) => onDocumentTypeChange?.(event.target.value)}
-                  disabled={disabled || !onDocumentTypeChange || documentTypeOptions.length === 0}
-                >
-                  {documentTypeOptions.map((option) => (
-                    <option key={option} value={option}>
-                      {option}
-                    </option>
-                  ))}
-                </select>
+                <div className="summary-value">{documentType}</div>
+                <div className="summary-label">Type · {typeConfidence}</div>
               </div>
             </div>
-          </div>
-
-          <div className="summary-section">
-            <div className="summary-heading">Highlights</div>
-            <div className="summary-text-block">{structuredFields?.highlights ?? "Not detected"}</div>
           </div>
 
           <div className="summary-section">
@@ -104,6 +77,44 @@ export function SummaryView({
               </div>
               <span className={`badge ${isNotDetected(structuredFields?.amounts) ? "badge-warning" : "badge-success"}`}>
                 {isNotDetected(structuredFields?.amounts) ? "Needs input" : "Verified"}
+              </span>
+            </div>
+            <div className="summary-row">
+              <div>
+                <div className="summary-row-label">Invoice/Order IDs</div>
+                <div className="summary-row-value">{structuredFields?.invoice_numbers ?? "Not detected"}</div>
+              </div>
+              <span
+                className={`badge ${isNotDetected(structuredFields?.invoice_numbers) ? "badge-warning" : "badge-success"}`}
+              >
+                {isNotDetected(structuredFields?.invoice_numbers) ? "Needs input" : "Verified"}
+              </span>
+            </div>
+            <div className="summary-row">
+              <div>
+                <div className="summary-row-label">Emails</div>
+                <div className="summary-row-value">{structuredFields?.emails ?? "Not detected"}</div>
+              </div>
+              <span className={`badge ${isNotDetected(structuredFields?.emails) ? "badge-warning" : "badge-success"}`}>
+                {isNotDetected(structuredFields?.emails) ? "Needs input" : "Verified"}
+              </span>
+            </div>
+            <div className="summary-row">
+              <div>
+                <div className="summary-row-label">Phones</div>
+                <div className="summary-row-value">{structuredFields?.phones ?? "Not detected"}</div>
+              </div>
+              <span className={`badge ${isNotDetected(structuredFields?.phones) ? "badge-warning" : "badge-success"}`}>
+                {isNotDetected(structuredFields?.phones) ? "Needs input" : "Verified"}
+              </span>
+            </div>
+            <div className="summary-row">
+              <div>
+                <div className="summary-row-label">Tax/VAT IDs</div>
+                <div className="summary-row-value">{structuredFields?.tax_ids ?? "Not detected"}</div>
+              </div>
+              <span className={`badge ${isNotDetected(structuredFields?.tax_ids) ? "badge-warning" : "badge-success"}`}>
+                {isNotDetected(structuredFields?.tax_ids) ? "Needs input" : "Verified"}
               </span>
             </div>
           </div>

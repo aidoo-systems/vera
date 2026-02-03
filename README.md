@@ -14,7 +14,7 @@ VERA is a verification-first OCR application that extracts text from document im
 - Storage: SQLite + local file storage
 
 ## Document Lifecycle
-`uploaded -> ocr_done -> review_in_progress -> validated -> summarized -> exported`
+`uploaded -> ocr_done -> review_in_progress -> validated -> summarized -> exported (or canceled)`
 
 Validation is a hard gate. Summaries and exports are only available after explicit review completion.
 
@@ -47,16 +47,27 @@ to avoid `DuplicateTable` errors:
 ## Notes
 - PDF support requires Poppler (Docker image installs it automatically).
 - Summaries and exports are gated behind explicit review completion.
+- AI summaries use Ollama only when enabled in Settings; failures do not fallback to offline summaries.
 
 ## Optional LLM summaries (Ollama)
-VERA can optionally call an Ollama instance to generate smart summary points. This is disabled by default.
+VERA can optionally call an Ollama instance to generate smart summary points. Toggle AI summaries from Settings in the UI.
 
 Environment variables:
-- `LLM_SUMMARY_ENABLED` (default: `false`)
 - `OLLAMA_URL` (default: `http://localhost:11434`)
 - `OLLAMA_MODEL` (default: `llama3.1`)
+- `OLLAMA_TIMEOUT` (default: `300` seconds)
 
 When enabled, the backend will call `POST /api/generate` on the Ollama URL and use the returned bullet points
-in the Summary view.
+in the Summary view. If Ollama is unavailable or times out, the summary remains unchanged and the UI shows
+a warning toast. AI mode does not fallback to offline summaries.
 
 If you run the backend in Docker but Ollama runs on your host, set `OLLAMA_URL=http://host.docker.internal:11434`.
+
+## Detected patterns
+The summary view extracts the following patterns when possible (amounts are normalized):
+- Dates (multiple formats)
+- Amounts (symbols, currency codes, and totals)
+- Invoice/Order IDs
+- Emails
+- Phone numbers
+- Tax/VAT IDs

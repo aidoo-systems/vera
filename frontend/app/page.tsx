@@ -61,22 +61,16 @@ export default function HomePage() {
   const [processingCanceled, setProcessingCanceled] = useState(false);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const [selectedModel, setSelectedModel] = useState("llama3.1");
+  const [aiEnabled, setAiEnabled] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [summarySource, setSummarySource] = useState<"ai" | "offline" | null>(null);
+  const [ollamaHealth, setOllamaHealth] = useState<{ reachable: boolean } | null>(null);
+  const [ollamaWarned, setOllamaWarned] = useState(false);
+  const [summaryLoading, setSummaryLoading] = useState(false);
   const isProcessing = documentData ? ["uploaded", "processing"].includes(documentData.status) : false;
   const processingActive = isProcessing && pollingEnabled;
   const interactionDisabled = loading || processingActive;
   const statusDotClass = isProcessing ? "status-indexing" : "status-ready";
-  const documentTypeOptions = [
-    "Unknown",
-    "Invoice/Receipt",
-    "Statement",
-    "Purchase order",
-    "Shipping/Delivery",
-    "Legal/Contract",
-    "Form/Application",
-    "Report",
-    "Letter/Correspondence",
-    "ID/Certificate",
-  ];
 
   const allTokens = useMemo<TokenBox[]>(() => {
     if (!documentData) return [];
@@ -128,6 +122,8 @@ export default function HomePage() {
     setLoading(true);
     setError(null);
     setSummary(null);
+    setSummarySource(null);
+    setSummaryLoading(false);
     setPollingEnabled(true);
     setProcessingCanceled(false);
     try {
@@ -194,8 +190,12 @@ export default function HomePage() {
     return payload;
   };
 
-  const saveProgress = async (reviewComplete: boolean) => {
+  const confirmReview = async () => {
     if (!documentData) return;
+    if (aiEnabled && !selectedModel) {
+      pushToast("Select a model before generating AI summaries.", "error");
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
@@ -205,7 +205,7 @@ export default function HomePage() {
         body: JSON.stringify({
           corrections: buildCorrectionsPayload(),
           reviewed_token_ids: Array.from(reviewedTokenIds),
-          review_complete: reviewComplete,
+          review_complete: true,
         }),
       });
 
@@ -214,17 +214,14 @@ export default function HomePage() {
         throw new Error(message || "Validation failed");
       }
 
-      if (reviewComplete) {
-        const modelParam = selectedModel ? `?model=${encodeURIComponent(selectedModel)}` : "";
-        const summaryResponse = await fetch(
-          `${apiBase}/documents/${documentData.document_id}/summary${modelParam}`
-        );
-        if (!summaryResponse.ok) {
-          const message = await summaryResponse.text();
-          throw new Error(message || "Summary failed");
-        }
-        const summaryData = (await summaryResponse.json()) as SummaryPayload;
-        setSummary(summaryData);
+      setSummaryLoading(true);
+      try {
+        await requestSummary();
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Summary failed";
+        console.error("Summary failed", err);
+        setError(message);
+        pushToast(message, "error");
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : "Validation failed";
@@ -232,8 +229,26 @@ export default function HomePage() {
       setError(message);
       pushToast(message, "error");
     } finally {
+      setSummaryLoading(false);
       setLoading(false);
     }
+  };
+
+  const requestSummary = async () => {
+    if (!documentData) return;
+    const useAi = aiEnabled && selectedModel;
+    if (aiEnabled && !selectedModel) {
+      throw new Error("Select a model to generate AI summaries.");
+    }
+    const modelParam = useAi ? `?model=${encodeURIComponent(selectedModel)}` : "";
+    const summaryResponse = await fetch(`${apiBase}/documents/${documentData.document_id}/summary${modelParam}`);
+    if (!summaryResponse.ok) {
+      const message = await summaryResponse.text();
+      throw new Error(message || "Summary failed");
+    }
+    const summaryData = (await summaryResponse.json()) as SummaryPayload;
+    setSummary(summaryData);
+    setSummarySource(useAi ? "ai" : "offline");
   };
 
   const exportDocument = async (format: "json" | "csv" | "txt") => {
@@ -265,56 +280,53 @@ export default function HomePage() {
     }
   };
 
-  const updateDocumentType = async (value: string) => {
-    if (!documentData) return;
+
+  const refreshSummary = async () => {
+    if (!summary || !documentData) return;
     setLoading(true);
+    setSummaryLoading(true);
     setError(null);
     try {
-      const response = await fetch(`${apiBase}/documents/${documentData.document_id}/fields`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          structured_fields: {
-            ...(documentData.structured_fields ?? {}),
-            document_type: value,
-          },
-        }),
-      });
-      if (!response.ok) {
-        const message = await response.text();
-        throw new Error(message || "Document type update failed");
-      }
-      setDocumentData((prev) =>
-        prev
-          ? {
-              ...prev,
-              structured_fields: {
-                ...prev.structured_fields,
-                document_type: value,
-              },
-            }
-          : prev
-      );
-      setSummary((prev) =>
-        prev
-          ? {
-              ...prev,
-              structured_fields: {
-                ...prev.structured_fields,
-                document_type: value,
-              },
-            }
-          : prev
-      );
+      await requestSummary();
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Document type update failed";
-      console.error("Document type update failed", err);
+      const message = err instanceof Error ? err.message : "Summary failed";
+      console.error("Summary failed", err);
       setError(message);
       pushToast(message, "error");
     } finally {
+      setSummaryLoading(false);
       setLoading(false);
     }
   };
+
+  const fetchOllamaHealth = async () => {
+    try {
+      const response = await fetch(`${apiBase}/llm/health`);
+      if (!response.ok) {
+        throw new Error("Ollama is not reachable");
+      }
+      const data = (await response.json()) as { reachable: boolean };
+      setOllamaHealth({ reachable: Boolean(data.reachable) });
+      if (data.reachable) {
+        setOllamaWarned(false);
+      }
+    } catch {
+      setOllamaHealth({ reachable: false });
+    }
+  };
+
+  useEffect(() => {
+    if (!settingsOpen) return;
+    fetchOllamaHealth();
+  }, [settingsOpen]);
+
+  useEffect(() => {
+    if (!aiEnabled || !ollamaHealth || ollamaHealth.reachable) return;
+    if (!ollamaWarned) {
+      pushToast("Ollama is not reachable from the backend. AI summaries may fail.", "error");
+      setOllamaWarned(true);
+    }
+  }, [aiEnabled, ollamaHealth, ollamaWarned]);
 
   const findNextTokenId = (currentId: string, nextReviewed: Set<string>) => {
     if (!flaggedTokens.length) return null;
@@ -412,6 +424,53 @@ export default function HomePage() {
           ))}
         </div>
       ) : null}
+      {settingsOpen ? (
+        <div className="modal-overlay" role="dialog" aria-modal="true">
+          <div className="modal-panel">
+            <div className="modal-header">
+              <div className="modal-title">Settings</div>
+              <button type="button" className="btn btn-secondary btn-sm" onClick={() => setSettingsOpen(false)}>
+                Close
+              </button>
+            </div>
+            <div className="modal-body vera-stack">
+              <div className="settings-row">
+                <span className="form-label">Ollama status</span>
+                {ollamaHealth ? (
+                  <span
+                    className={`summary-badge ${
+                      ollamaHealth.reachable ? "summary-badge-ai" : "summary-badge-offline"
+                    }`}
+                  >
+                    {ollamaHealth.reachable ? "Connected" : "Not reachable"}
+                  </span>
+                ) : (
+                  <span className="summary-badge summary-badge-offline">Checking...</span>
+                )}
+              </div>
+              <label className="form-check">
+                <input
+                  type="checkbox"
+                  checked={aiEnabled}
+                  onChange={(event) => setAiEnabled(event.target.checked)}
+                />
+                <span className="form-check-label">Enable AI summaries (Ollama)</span>
+              </label>
+              {aiEnabled ? (
+                <OllamaConsole
+                  apiBase={apiBase}
+                  selectedModel={selectedModel}
+                  onSelectModel={setSelectedModel}
+                  onToast={pushToast}
+                  disabled={interactionDisabled}
+                />
+              ) : (
+                <div className="form-hint">AI summaries are disabled. Offline summaries will be used.</div>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : null}
       <header className="header">
         <div className="header-left">
           <span className={`status-dot ${statusDotClass}`} />
@@ -421,6 +480,9 @@ export default function HomePage() {
         </div>
         <div className="header-right">
           <span className="header-title">JPG, PNG, PDF</span>
+          <button type="button" className="btn btn-secondary btn-sm" onClick={() => setSettingsOpen(true)}>
+            Settings
+          </button>
         </div>
       </header>
 
@@ -549,22 +611,41 @@ export default function HomePage() {
               <div className="card">
                 <div className="card-header">
                   <div className="card-title">Summary</div>
+                  <div className="card-header-actions">
+                    {summarySource ? (
+                      <span className={`summary-badge summary-badge-${summarySource}`}>
+                        {summarySource === "ai" ? "AI" : "Offline"}
+                      </span>
+                    ) : null}
+                    {summary ? (
+                      <button
+                        type="button"
+                        onClick={refreshSummary}
+                        disabled={interactionDisabled}
+                        className="btn btn-secondary btn-sm"
+                      >
+                        Regenerate
+                      </button>
+                    ) : null}
+                  </div>
                 </div>
                 <div className="card-body">
+                  {summaryLoading ? (
+                    <div className="processing-banner" role="status" aria-live="polite">
+                      <div className="processing-info">
+                        <div className="processing-title">Generating text</div>
+                        <div className="processing-subtitle">
+                          {aiEnabled ? "Waiting for Ollama response." : "Compiling summary."}
+                        </div>
+                      </div>
+                      <div className="processing-bar" aria-hidden="true">
+                        <div className="processing-bar-fill" />
+                      </div>
+                    </div>
+                  ) : null}
                   <SummaryView
                     bulletSummary={summary?.bullet_summary ?? []}
                     structuredFields={summary?.structured_fields}
-                    documentTypeOptions={documentTypeOptions}
-                    documentTypeValue={summary?.structured_fields?.document_type}
-                    onDocumentTypeChange={updateDocumentType}
-                    disabled={interactionDisabled}
-                  />
-                  <OllamaConsole
-                    apiBase={apiBase}
-                    selectedModel={selectedModel}
-                    onSelectModel={setSelectedModel}
-                    onToast={pushToast}
-                    disabled={interactionDisabled}
                   />
                 </div>
               </div>
@@ -573,14 +654,17 @@ export default function HomePage() {
             <aside className="vera-stack">
               <div className="card">
                 <div className="card-header">
-                  <div className="card-title">Review</div>
+                  <div className="card-title">Uncertain text</div>
                 </div>
                 <div className="card-body vera-stack">
                   <div className="form-hint">
-                    {flaggedTokens.length} uncertain items · {reviewedCount} confirmed
+                    {flaggedTokens.length} uncertain items · {reviewedCount} reviewed
                   </div>
                   <div className="progress-bar">
                     <div className="progress-fill" style={{ width: `${reviewProgress}%` }} />
+                  </div>
+                  <div className="form-hint">
+                    Uncertain text is flagged for low confidence or forced review.
                   </div>
                   <TokenList
                     tokens={flaggedTokens}
@@ -610,24 +694,14 @@ export default function HomePage() {
                     disabled={interactionDisabled}
                     isReviewed={selectedToken ? reviewedTokenIds.has(selectedToken.id) : false}
                   />
-                  <div className="vera-stack">
-                    <button
-                      type="button"
-                      onClick={() => saveProgress(false)}
-                      disabled={!documentData || interactionDisabled}
-                      className="btn btn-secondary"
-                    >
-                      Save progress
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => saveProgress(true)}
-                      disabled={!documentData || interactionDisabled}
-                      className="btn btn-primary"
-                    >
-                      Confirm and generate summary
-                    </button>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={confirmReview}
+                    disabled={!documentData || interactionDisabled}
+                    className="btn btn-primary"
+                  >
+                    Confirm and generate summary
+                  </button>
                 </div>
               </div>
 

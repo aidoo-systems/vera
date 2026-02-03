@@ -124,12 +124,45 @@ def test_summary_returns_generic_structured_fields_from_validated_text():
     payload = response.json()
     assert payload["structured_fields"]["line_count"] == "3"
     assert payload["structured_fields"]["word_count"] == "5"
-    assert payload["structured_fields"]["highlights"] == "Acme Corp | 2026-02-01 | Total $12.00"
     assert payload["structured_fields"]["dates"] == "2026-02-01"
     assert payload["structured_fields"]["amounts"] == "$12.00"
     assert payload["structured_fields"]["document_type"] == "Invoice/Receipt"
     assert payload["structured_fields"]["document_type_confidence"] == "low"
     assert payload["structured_fields"]["keywords"] == "acme, corp, total"
+
+
+def test_summary_detects_patterns_and_normalizes_amounts():
+    _reset_db()
+    document_id = _create_document(DocumentStatus.validated.value)
+    validated_text = "\n".join(
+        [
+            "Invoice # INV-1007",
+            "Date: 03/02/2026",
+            "Total 59,99",
+            "VAT ID: GB123456789",
+            "Contact: billing@example.com",
+            "+1 (415) 555-0100",
+            "USD 1,234.50",
+        ]
+    )
+    with get_session() as session:
+        session.execute(
+            Document.__table__.update()
+            .where(Document.id == document_id)
+            .values(validated_text=validated_text)
+        )
+        session.commit()
+
+    response = client.get(f"/documents/{document_id}/summary")
+
+    assert response.status_code == 200
+    fields = response.json()["structured_fields"]
+    assert fields["invoice_numbers"] == "INV-1007"
+    assert fields["tax_ids"] == "GB123456789"
+    assert fields["emails"] == "billing@example.com"
+    assert fields["phones"] == "+1 (415) 555-0100"
+    assert "59.99" in fields["amounts"]
+    assert "USD 1234.50" in fields["amounts"]
 
 
 def test_export_allows_summarized_documents():
