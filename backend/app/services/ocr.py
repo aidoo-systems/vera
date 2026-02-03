@@ -102,10 +102,9 @@ def _extract_tokens(image_path: str) -> list[dict]:
     return tokens
 
 
-async def run_ocr(file: UploadFile) -> OcrResult:
+def run_ocr_for_document(document_id: str, image_path: str, image_url: str) -> OcrResult:
     Base.metadata.create_all(bind=engine)
-    logger.info("OCR start filename=%s", file.filename)
-    document_id, image_path, image_url = save_upload(file)
+    logger.info("OCR start document_id=%s", document_id)
     with Image.open(image_path) as image:
         image_width, image_height = image.size
 
@@ -114,15 +113,21 @@ async def run_ocr(file: UploadFile) -> OcrResult:
     token_schemas: list[TokenSchema] = []
 
     with get_session() as session:
-        document = Document(
-            id=document_id,
-            image_path=image_path,
-            image_width=image_width,
-            image_height=image_height,
-            status=DocumentStatus.ocr_done.value,
-            structured_fields=json.dumps({}),
+        document = session.get(Document, document_id)
+        if document is None:
+            raise ValueError("document_not_found")
+
+        session.execute(Token.__table__.delete().where(Token.document_id == document_id))
+        session.execute(
+            Document.__table__.update()
+            .where(Document.id == document_id)
+            .values(
+                image_path=image_path,
+                image_width=image_width,
+                image_height=image_height,
+                status=DocumentStatus.ocr_done.value,
+            )
         )
-        session.add(document)
 
         for raw in grouped_tokens:
             confidence_label = TokenConfidenceLabel(classify_confidence(raw["confidence"]))
@@ -184,4 +189,24 @@ async def run_ocr(file: UploadFile) -> OcrResult:
         image_width=image_width,
         image_height=image_height,
     )
+
+
+async def run_ocr(file: UploadFile) -> OcrResult:
+    Base.metadata.create_all(bind=engine)
+    logger.info("OCR start filename=%s", file.filename)
+    document_id, image_path, image_url = save_upload(file)
+    with get_session() as session:
+        session.add(
+            Document(
+                id=document_id,
+                image_path=image_path,
+                image_width=0,
+                image_height=0,
+                status=DocumentStatus.processing.value,
+                structured_fields=json.dumps({}),
+            )
+        )
+        session.commit()
+
+    return run_ocr_for_document(document_id, image_path, image_url)
 logger = logging.getLogger("vera.ocr")

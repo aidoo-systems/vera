@@ -12,8 +12,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import select, update
+from sqlalchemy import text as sql_text
 
-from app.services.ocr import run_ocr
+from app.services.storage import save_upload
 from app.services.validation import apply_corrections
 from app.services.summary import build_summary
 from app.schemas.documents import StructuredFieldsUpdateRequest, ValidateRequest
@@ -21,6 +22,7 @@ from app.db.session import Base, engine, get_session
 from app.models.documents import AuditLog, Document
 from app.schemas.documents import DocumentStatus
 from app.models.documents import Token
+from app.worker import celery_app
 
 logging.basicConfig(
     level=logging.DEBUG,
@@ -69,17 +71,23 @@ async def log_requests(request: Request, call_next):
 async def upload_document(file: UploadFile = File(...)):
     logger.info("Upload started filename=%s", file.filename)
     try:
-        ocr_result = await run_ocr(file)
+        document_id, image_path, image_url = save_upload(file)
+        with get_session() as session:
+            session.add(
+                Document(
+                    id=document_id,
+                    image_path=image_path,
+                    image_width=0,
+                    image_height=0,
+                    status=DocumentStatus.uploaded.value,
+                    structured_fields=json.dumps({}),
+                )
+            )
+            session.commit()
+        celery_app.send_task("vera.process_document", args=[document_id])
     except RuntimeError as error:
-        if str(error) == "paddleocr_not_installed":
-            logger.exception("PaddleOCR import failed")
-            raise HTTPException(status_code=503, detail="PaddleOCR is not installed")
-        if str(error) == "ocr_init_failed":
-            logger.exception("OCR init failed")
-            raise HTTPException(status_code=503, detail="OCR initialization failed")
-        if str(error) == "ocr_failed":
-            logger.exception("OCR failed")
-            raise HTTPException(status_code=503, detail="OCR processing failed")
+        if str(error) == "celery_not_installed":
+            raise HTTPException(status_code=503, detail="Background worker is not available")
         if str(error) == "pdf_support_not_installed":
             raise HTTPException(status_code=503, detail="PDF support is not installed")
         if str(error) == "pdf_no_pages":
@@ -92,14 +100,14 @@ async def upload_document(file: UploadFile = File(...)):
     except Exception:
         logger.exception("Upload failed")
         raise
-    logger.info("Upload completed document_id=%s", ocr_result.document_id)
+    logger.info("Upload queued document_id=%s", document_id)
     payload = {
-        "document_id": ocr_result.document_id,
-        "image_url": ocr_result.image_url,
-        "image_width": ocr_result.image_width,
-        "image_height": ocr_result.image_height,
-        "status": ocr_result.status,
-        "tokens": [token.model_dump() for token in ocr_result.tokens],
+        "document_id": document_id,
+        "image_url": image_url,
+        "image_width": 0,
+        "image_height": 0,
+        "status": DocumentStatus.uploaded.value,
+        "tokens": [],
         "structured_fields": {},
     }
     return JSONResponse(jsonable_encoder(payload))
@@ -306,3 +314,10 @@ async def export_document(document_id: str, format: str = "json"):
         return PlainTextResponse("\n".join(lines), media_type="text/csv")
 
     return JSONResponse(payload)
+
+
+@app.get("/health")
+async def health_check():
+    with engine.connect() as connection:
+        connection.execute(sql_text("SELECT 1"))
+    return JSONResponse({"status": "ok"})

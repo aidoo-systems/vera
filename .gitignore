@@ -3,6 +3,7 @@ frontend/.next/
 backend/__pycache__/
 backend/.pytest_cache/
 backend/.venv/
+backend/tests/test_data/
 *.pyc
 .env
 data/

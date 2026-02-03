@@ -39,57 +39,114 @@ def build_summary(document_id: str) -> dict:
 
     lines = [line.strip() for line in validated_text.splitlines() if line.strip()]
 
-    vendor = lines[0] if lines else "Not detected"
+    line_count = len(lines)
+    word_count = sum(len(line.split()) for line in lines)
 
-    date_match = None
     date_pattern = re.compile(r"(\d{1,2}[/-]\d{1,2}[/-]\d{2,4}|\d{4}-\d{2}-\d{2})")
+    dates: list[str] = []
+    seen_dates = set()
     for line in lines:
-        date_match = date_pattern.search(line)
-        if date_match:
-            break
-    date_value = date_match.group(0) if date_match else "Not detected"
+        for match in date_pattern.findall(line):
+            if match in seen_dates:
+                continue
+            seen_dates.add(match)
+            dates.append(match)
 
-    total_value = "Not detected"
-    currency_pattern = re.compile(r"(£|\$|€)\s*\d{1,3}(?:,\d{3})*(?:\.\d{2})?")
+    currency_pattern = re.compile(r"(?:£|\$|€)\s*\d{1,3}(?:,\d{3})*(?:\.\d{2})?")
+    amounts: list[str] = []
+    seen_amounts = set()
     for line in lines:
-        if re.search(r"\b(total|amount\s+due|balance\s+due|grand\s+total)\b", line, re.IGNORECASE):
-            currency_match = currency_pattern.search(line)
-            if currency_match:
-                total_value = currency_match.group(0)
-                break
-    if total_value == "Not detected":
-        for line in reversed(lines):
-            currency_match = currency_pattern.search(line)
-            if currency_match:
-                total_value = currency_match.group(0)
-                break
+        for match in currency_pattern.finditer(line):
+            value = match.group(0)
+            if value in seen_amounts:
+                continue
+            seen_amounts.add(value)
+            amounts.append(value)
 
-    vat_value = "Not detected"
-    for line in lines:
-        if re.search(r"\b(vat|tax)\b", line, re.IGNORECASE):
-            currency_match = currency_pattern.search(line)
-            if currency_match:
-                vat_value = currency_match.group(0)
-                break
+    highlights = lines[:3]
+    highlight_text = " | ".join(highlights) if highlights else "No text detected"
+    date_text = ", ".join(dates) if dates else "Not detected"
+    amount_text = ", ".join(amounts) if amounts else "Not detected"
 
-    line_items = "Not detected"
-    if lines:
-        line_items = str(max(len(lines) - 2, 0))
+    doc_signals = [
+        ("Invoice/Receipt", ["invoice", "receipt", "subtotal", "total", "amount due", "balance due", "vat", "tax", "paid"]),
+        ("Statement", ["statement", "account", "transactions", "balance"]),
+        ("Form", ["application", "form", "please fill", "checkbox", "signature"]),
+        ("Letter", ["dear", "sincerely", "regards"]),
+        ("Report", ["report", "summary", "analysis"]),
+    ]
+    text_blob = "\n".join(lines).lower()
+    best_label = "General document"
+    best_hits = 0
+    for label, keywords in doc_signals:
+        hits = sum(1 for keyword in keywords if keyword in text_blob)
+        if hits > best_hits:
+            best_hits = hits
+            best_label = label
+
+    if best_hits >= 3:
+        confidence = "high"
+    elif best_hits == 2:
+        confidence = "medium"
+    elif best_hits == 1:
+        confidence = "low"
+    else:
+        confidence = "low"
+
+    stopwords = {
+        "a",
+        "an",
+        "and",
+        "are",
+        "as",
+        "at",
+        "be",
+        "by",
+        "for",
+        "from",
+        "has",
+        "in",
+        "is",
+        "it",
+        "of",
+        "on",
+        "or",
+        "that",
+        "the",
+        "to",
+        "was",
+        "were",
+        "will",
+        "with",
+    }
+    words = re.findall(r"[A-Za-z][A-Za-z0-9'-]+", validated_text.lower())
+    keyword_counts: dict[str, int] = {}
+    for word in words:
+        if len(word) < 3 or word in stopwords:
+            continue
+        keyword_counts[word] = keyword_counts.get(word, 0) + 1
+    sorted_keywords = sorted(keyword_counts.items(), key=lambda item: (-item[1], item[0]))
+    top_keywords = [word for word, _ in sorted_keywords[:5]]
+    keyword_text = ", ".join(top_keywords) if top_keywords else "Not detected"
 
     bullet_summary = [
-        f"Vendor: {vendor}",
-        f"Date: {date_value}",
-        f"Total amount: {total_value}",
-        f"VAT detected: {vat_value}",
-        f"{line_items} line items identified" if line_items != "Not detected" else "Line items: Not detected",
+        f"Overview: {line_count} lines · {word_count} words",
+        f"Document type: {best_label} ({confidence})",
+        f"Highlights: {highlight_text}",
+        f"Keywords: {keyword_text}",
+        f"Dates detected: {date_text}",
+        f"Amounts detected: {amount_text}",
         "All low-confidence items reviewed by user",
     ]
     structured_fields: dict[str, str] = {
-        "vendor": vendor,
-        "date": date_value,
-        "total_amount": total_value,
-        "vat": vat_value,
-        "line_items": line_items,
+        "line_count": str(line_count),
+        "word_count": str(word_count),
+        "highlights": highlight_text,
+        "dates": date_text,
+        "amounts": amount_text,
+        "document_type": best_label,
+        "document_type_confidence": confidence,
+        "keywords": keyword_text,
     }
 
     with get_session() as session:

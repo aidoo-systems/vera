@@ -7,11 +7,13 @@ from pydantic import BaseModel, Field
 
 class DocumentStatus(str, Enum):
     uploaded = "uploaded"
+    processing = "processing"
     ocr_done = "ocr_done"
     review_in_progress = "review_in_progress"
     validated = "validated"
     summarized = "summarized"
     exported = "exported"
+    failed = "failed"
 
 
 class TokenConfidenceLabel(str, Enum):

@@ -18,14 +18,20 @@ VERA is a verification-first OCR application that extracts text from document im
 
 Validation is a hard gate. Summaries and exports are only available after explicit review completion.
 
-## Getting Started (Docker)
+## Getting Started (Docker, On-Prem)
 1. `docker compose up -d --build`
-2. Frontend: `http://localhost:3000`
-3. Backend: `http://localhost:4000`
+2. Run migrations: `docker compose exec backend alembic upgrade head`
+3. Frontend: `http://localhost:3000`
+4. Backend: `http://localhost:4000`
 
 ## Getting Started (Local)
-1. Backend: `cd backend` → `pip install -r requirements.txt` → `uvicorn app.main:app --reload --port 8000`
-2. Frontend: `cd frontend` → `npm install` → `npm run dev`
+1. Backend: `cd backend` → `pip install -r requirements.txt`
+2. Set `DATABASE_URL` (Postgres recommended). Example:
+   `postgresql+psycopg://vera:vera@localhost:5432/vera`
+3. Run migrations: `alembic upgrade head`
+4. Start API: `uvicorn app.main:app --reload --port 8000`
+5. Start worker: `celery -A app.worker.celery_app worker --loglevel=info --concurrency=2`
+6. Frontend: `cd frontend` → `npm install` → `npm run dev`
 
 ## Notes
 - PDF support requires Poppler (Docker image installs it automatically).

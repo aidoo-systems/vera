@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { CorrectionEditor } from "../components/CorrectionEditor";
 import { ImageOverlay, type TokenBox } from "../components/ImageOverlay";
 import { TokenList } from "../components/TokenList";
@@ -50,6 +50,7 @@ export default function HomePage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showAllTokens, setShowAllTokens] = useState(false);
+  const isProcessing = documentData ? ["uploaded", "processing"].includes(documentData.status) : false;
 
   const allTokens = useMemo<TokenBox[]>(() => {
     if (!documentData) return [];
@@ -119,6 +120,28 @@ export default function HomePage() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (!documentData || !isProcessing) return;
+    const interval = window.setInterval(async () => {
+      try {
+        const response = await fetch(`${apiBase}/documents/${documentData.document_id}`);
+        if (!response.ok) return;
+        const data = (await response.json()) as DocumentPayload;
+        setDocumentData({
+          ...data,
+          image_url: `${apiBase}${data.image_url}`,
+        });
+        if (data.status === "failed") {
+          setError("OCR processing failed. Please retry or upload a different document.");
+          window.clearInterval(interval);
+        }
+      } catch (err) {
+        console.error("Status polling failed", err);
+      }
+    }, 1500);
+    return () => window.clearInterval(interval);
+  }, [apiBase, documentData, isProcessing]);
 
   const buildCorrectionsPayload = () => {
     const payload: Array<{ token_id: string; corrected_text: string }> = [];
@@ -274,6 +297,9 @@ export default function HomePage() {
                   Running OCR. First run may download model assets.
                 </div>
               ) : null}
+              {isProcessing ? (
+                <div className="alert alert-info">OCR is running. Tokens will appear when processing completes.</div>
+              ) : null}
               {error ? <div className="alert alert-error">{error}</div> : null}
             </div>
           </div>
@@ -283,6 +309,23 @@ export default function HomePage() {
               <div className="card">
                 <div className="card-header">
                   <div className="card-title">Document</div>
+                  {documentData ? (
+                    <span
+                      className={`status-pill ${
+                        documentData.status === "failed"
+                          ? "status-pill-error"
+                          : isProcessing
+                          ? "status-pill-processing"
+                          : "status-pill-ready"
+                      }`}
+                    >
+                      {documentData.status === "failed"
+                        ? "Failed"
+                        : isProcessing
+                        ? "Processing"
+                        : "Ready"}
+                    </span>
+                  ) : null}
                 </div>
                 <div className="card-body">
                   {documentData ? (
@@ -308,7 +351,10 @@ export default function HomePage() {
                   <div className="card-title">Summary</div>
                 </div>
                 <div className="card-body">
-                  <SummaryView bulletSummary={summary?.bullet_summary ?? []} />
+                  <SummaryView
+                    bulletSummary={summary?.bullet_summary ?? []}
+                    structuredFields={summary?.structured_fields}
+                  />
                 </div>
               </div>
             </div>

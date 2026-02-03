@@ -107,7 +107,7 @@ def test_summary_requires_validated_document():
     assert response.json()["detail"] == "Document not validated"
 
 
-def test_summary_returns_structured_fields_from_validated_text():
+def test_summary_returns_generic_structured_fields_from_validated_text():
     _reset_db()
     document_id = _create_document(DocumentStatus.validated.value)
     with get_session() as session:
@@ -122,9 +122,14 @@ def test_summary_returns_structured_fields_from_validated_text():
 
     assert response.status_code == 200
     payload = response.json()
-    assert payload["structured_fields"]["vendor"] == "Acme Corp"
-    assert payload["structured_fields"]["date"] == "2026-02-01"
-    assert payload["structured_fields"]["total_amount"] == "$12.00"
+    assert payload["structured_fields"]["line_count"] == "3"
+    assert payload["structured_fields"]["word_count"] == "5"
+    assert payload["structured_fields"]["highlights"] == "Acme Corp | 2026-02-01 | Total $12.00"
+    assert payload["structured_fields"]["dates"] == "2026-02-01"
+    assert payload["structured_fields"]["amounts"] == "$12.00"
+    assert payload["structured_fields"]["document_type"] == "Invoice/Receipt"
+    assert payload["structured_fields"]["document_type_confidence"] == "low"
+    assert payload["structured_fields"]["keywords"] == "acme, corp, total"
 
 
 def test_export_allows_summarized_documents():

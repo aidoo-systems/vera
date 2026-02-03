@@ -4,6 +4,8 @@ import logging
 import os
 import shutil
 import uuid
+from typing import BinaryIO, Protocol
+
 from fastapi import UploadFile
 
 SUPPORTED_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png"}
@@ -17,7 +19,12 @@ def ensure_data_dir() -> str:
     return data_dir
 
 
-def save_upload(file: UploadFile) -> tuple[str, str, str]:
+class UploadLike(Protocol):
+    filename: str | None
+    file: BinaryIO
+
+
+def save_upload(file: UploadFile | UploadLike) -> tuple[str, str, str]:
     data_dir = ensure_data_dir()
     extension = os.path.splitext(file.filename or "")[-1].lower()
     logger.debug("Save upload filename=%s extension=%s", file.filename, extension)
