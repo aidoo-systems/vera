@@ -9,6 +9,7 @@ from app.db.session import Base, engine, get_session
 from app.main import app
 from app.models.documents import AuditLog, Correction, Document, DocumentPage, Token
 from app.schemas.documents import DocumentStatus
+from app.services import summary as summary_service
 
 
 client = TestClient(app)
@@ -173,6 +174,42 @@ def test_summary_returns_generic_structured_fields_from_validated_text():
     assert payload["structured_fields"]["document_type"] == "Invoice/Receipt"
     assert payload["structured_fields"]["document_type_confidence"] == "low"
     assert payload["structured_fields"]["keywords"] == "acme, corp, total"
+    assert payload["structured_fields"]["detailed_summary"] == "Acme Corp. 2026-02-01. Total $12.00."
+
+
+def test_summary_falls_back_to_offline_when_llm_fails(monkeypatch):
+    _reset_db()
+    document_id, _page_id = _create_document(DocumentStatus.validated.value)
+    with get_session() as session:
+        session.execute(
+            Document.__table__.update()
+            .where(Document.id == document_id)
+            .values(validated_text="Line one\nLine two")
+        )
+        session.commit()
+
+    class FailingClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def post(self, *args, **kwargs):
+            raise RuntimeError("boom")
+
+    monkeypatch.setenv("OLLAMA_RETRIES", "0")
+    monkeypatch.setattr(summary_service.httpx, "Client", FailingClient)
+
+    response = client.get(f"/documents/{document_id}/summary?model=llama3.1")
+
+    assert response.status_code == 200
+    fields = response.json()["structured_fields"]
+    assert fields["detailed_summary"] == "Line one. Line two."
+    assert fields["summary_points"] == fields["detailed_summary"]
 
 
 def test_summary_detects_patterns_and_normalizes_amounts():

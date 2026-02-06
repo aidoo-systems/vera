@@ -167,6 +167,8 @@ export default function HomePage() {
   const processingActive = isProcessing && pollingEnabled;
   const interactionDisabled = loading || processingActive;
   const statusDotClass = isProcessing ? "status-indexing" : "status-ready";
+  const ollamaConnected = Boolean(ollamaHealth?.reachable);
+  const aiToggleDisabled = interactionDisabled || !ollamaConnected;
 
   const pageStatusClass = (status: string, reviewed: boolean) => {
     if (reviewed) return "status-pill-ready";
@@ -730,7 +732,17 @@ export default function HomePage() {
 
   useEffect(() => {
     if (!settingsOpen) return;
-    fetchOllamaHealth();
+    let mounted = true;
+    const pollHealth = async () => {
+      if (!mounted) return;
+      await fetchOllamaHealth();
+    };
+    pollHealth();
+    const interval = window.setInterval(pollHealth, 5000);
+    return () => {
+      mounted = false;
+      window.clearInterval(interval);
+    };
   }, [settingsOpen]);
 
   useEffect(() => {
@@ -740,6 +752,11 @@ export default function HomePage() {
       setOllamaWarned(true);
     }
   }, [aiEnabled, ollamaHealth, ollamaWarned]);
+
+  useEffect(() => {
+    if (!aiEnabled || !ollamaHealth || ollamaHealth.reachable) return;
+    setAiEnabled(false);
+  }, [aiEnabled, ollamaHealth]);
 
   const findNextTokenId = (currentId: string, nextReviewed: Set<string>) => {
     if (!flaggedTokens.length) return null;
@@ -889,6 +906,7 @@ export default function HomePage() {
                   type="checkbox"
                   checked={aiEnabled}
                   onChange={(event) => setAiEnabled(event.target.checked)}
+                  disabled={aiToggleDisabled}
                 />
                 <span className="form-check-label">Enable AI summaries (Ollama)</span>
               </label>
@@ -900,6 +918,8 @@ export default function HomePage() {
                   onToast={pushToast}
                   disabled={interactionDisabled}
                 />
+              ) : !ollamaConnected ? (
+                <div className="form-hint">Connect to Ollama to enable AI summaries.</div>
               ) : (
                 <div className="form-hint">AI summaries are disabled. Offline summaries will be used.</div>
               )}

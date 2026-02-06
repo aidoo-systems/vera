@@ -52,20 +52,22 @@ to avoid `DuplicateTable` errors:
 - Summaries and exports are gated behind explicit review completion.
 - Page summaries/exports are available once that page is reviewed; document summary/export requires all pages.
 - Document-level summary/export UI is only shown for multi-page documents.
-- AI summaries use Ollama only when enabled in Settings; failures do not fallback to offline summaries.
+- AI summaries use Ollama only when enabled in Settings; if Ollama is unavailable, offline detailed summaries are used.
 - Uploads enforce file size and MIME validation; configure limits with `MAX_UPLOAD_MB` and `STRICT_MIME_VALIDATION`.
 
 ## Optional LLM summaries (Ollama)
-VERA can optionally call an Ollama instance to generate smart summary points. Toggle AI summaries from Settings in the UI.
+VERA can optionally call an Ollama instance to generate a detailed summary for each page. Toggle AI summaries from Settings in the UI (the toggle is disabled unless Ollama is reachable).
 
 Environment variables:
 - `OLLAMA_URL` (default: `http://localhost:11434`)
 - `OLLAMA_MODEL` (default: `llama3.1`)
 - `OLLAMA_TIMEOUT` (default: `300` seconds)
+- `OLLAMA_RETRIES` (default: `2`)
+- `SUMMARY_MAX_CHARS` (default: `2000`)
 
-When enabled, the backend will call `POST /api/generate` on the Ollama URL and use the returned bullet points
-in the Summary view. If Ollama is unavailable or times out, the summary remains unchanged and the UI shows
-a warning toast. AI mode does not fallback to offline summaries.
+When enabled, the backend will call `POST /api/generate` on the Ollama URL and use the returned detailed summary
+in the Summary view. If Ollama is unavailable or times out, the backend falls back to offline detailed summaries
+and the UI shows a warning toast.
 
 If you run the backend in Docker but Ollama runs on your host, set `OLLAMA_URL=http://host.docker.internal:11434`.
 

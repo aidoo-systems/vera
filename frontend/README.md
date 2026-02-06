@@ -8,7 +8,7 @@ Core responsibilities:
 - Highlight low-confidence tokens
 - Inline correction UI
 - Validation submission
-- Page summaries + exports
+- Page summaries + exports (offline detailed summaries; optional AI summaries via Ollama)
 - Document summary + export (multi-page PDFs)
 
 Status updates use per-page polling with SSE fallback when available.

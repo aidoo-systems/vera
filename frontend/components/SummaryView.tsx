@@ -1,3 +1,5 @@
+import { useMemo, useState } from "react";
+
 type SummaryViewProps = {
   bulletSummary: string[];
   structuredFields?: Record<string, string>;
@@ -14,11 +16,21 @@ export function SummaryView({
   const hasStructuredFields = structuredFields && Object.keys(structuredFields).length > 0;
   const keywords = structuredFields?.keywords ?? "Not detected";
   const keywordList = keywords === "Not detected" ? [] : keywords.split(", ");
-  const summaryPoints = structuredFields?.summary_points ?? "Not detected";
-  const summaryPointList = summaryPoints === "Not detected" ? [] : summaryPoints.split(" | ");
+  const detailedSummary = structuredFields?.detailed_summary ?? structuredFields?.summary_points ?? "Not detected";
   const documentType = structuredFields?.document_type ?? "Unknown";
   const typeConfidence = structuredFields?.document_type_confidence ?? "low";
   const reviewNote = bulletSummary.find((item) => item.toLowerCase().includes("reviewed"));
+  const [summaryExpanded, setSummaryExpanded] = useState(false);
+  const maxSummaryLength = 420;
+  const summaryText = detailedSummary === "Not detected" ? "" : detailedSummary;
+  const displaySummary =
+    summaryExpanded || summaryText.length <= maxSummaryLength
+      ? summaryText
+      : `${summaryText.slice(0, maxSummaryLength).trim()}...`;
+  const summaryParagraphs = useMemo(
+    () => (displaySummary ? displaySummary.split(/\n\n+/) : []),
+    [displaySummary]
+  );
 
   return (
     <div className="vera-stack">
@@ -45,17 +57,24 @@ export function SummaryView({
           </div>
 
           <div className="summary-section">
-            <div className="summary-heading">Summary points</div>
-            {summaryPointList.length === 0 ? (
+            <div className="summary-heading">Detailed summary</div>
+            {summaryParagraphs.length === 0 ? (
               <div className="form-hint">Not detected</div>
             ) : (
-              <ul className="summary-points">
-                {summaryPointList.map((point) => (
-                  <li key={point} className="summary-point">
-                    {point}
-                  </li>
+              <div className="summary-text-block">
+                {summaryParagraphs.map((paragraph, index) => (
+                  <p key={`${paragraph}-${index}`}>{paragraph}</p>
                 ))}
-              </ul>
+                {summaryText.length > maxSummaryLength ? (
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => setSummaryExpanded((prev) => !prev)}
+                  >
+                    {summaryExpanded ? "Show less" : "Show full summary"}
+                  </button>
+                ) : null}
+              </div>
             )}
           </div>
 

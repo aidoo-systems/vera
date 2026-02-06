@@ -22,3 +22,9 @@ SUMMARY_DURATION = Histogram(
     "Summary generation duration",
     ["scope"],
 )
+
+SUMMARY_LLM_FAILURES = Counter(
+    "vera_summary_llm_failures_total",
+    "LLM summary failures",
+    ["reason"],
+)

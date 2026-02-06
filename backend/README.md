@@ -52,7 +52,11 @@ Page summaries/exports are available once that page is reviewed; document summar
 - `RETENTION_INTERVAL_MINUTES` (default: 1440)
 
 ## Summary extraction
+- Offline summaries generate a detailed, ordered page summary from validated text.
+- Optional AI summaries use Ollama when a `model` query parameter is provided; failures fall back to offline summaries.
 - `EXTRACTION_RULES_PATH` (default: `app/config/extraction_rules.json`)
+- `SUMMARY_MAX_CHARS` (default: `2000`)
+- `OLLAMA_RETRIES` (default: `2`)
 
 ## Document lifecycle
 `uploaded -> ocr_done -> review_in_progress -> validated -> summarized -> exported`

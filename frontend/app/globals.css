@@ -788,6 +788,17 @@ body {
     color: var(--text-primary);
     line-height: 1.6;
     word-break: break-word;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+.summary-text-block p {
+    margin: 0;
+}
+
+.summary-text-block .btn {
+    align-self: flex-start;
 }
 
 .summary-points {

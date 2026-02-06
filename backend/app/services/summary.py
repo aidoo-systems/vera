@@ -13,7 +13,7 @@ from sqlalchemy import select, update
 from app.db.session import Base, engine, get_session
 from app.models.documents import AuditLog, Document, DocumentPage
 from app.schemas.documents import DocumentStatus
-from app.utils.metrics import SUMMARY_DURATION
+from app.utils.metrics import SUMMARY_DURATION, SUMMARY_LLM_FAILURES
 
 _RULES_CACHE: dict = {}
 
@@ -56,7 +56,8 @@ def _build_summary_from_text(
     doc_type_override: str | None = None,
     locale_override: str | None = None,
 ) -> tuple[list[str], dict[str, str]]:
-    lines = [line.strip() for line in validated_text.splitlines() if line.strip()]
+    raw_lines = validated_text.splitlines()
+    lines = [line.strip() for line in raw_lines if line.strip()]
 
     rules = _load_rules()
     doc_type = doc_type_override or _detect_doc_type(lines, rules)
@@ -254,82 +255,81 @@ def _build_summary_from_text(
                 break
         return items
 
-    def parse_llm_response(raw_text: str) -> list[str] | None:
-        try:
-            parsed = json.loads(raw_text)
-            if isinstance(parsed, dict):
-                points = parsed.get("summary_points")
-                points_list = None
-                if isinstance(points, list):
-                    points_list = [str(item).strip() for item in points if str(item).strip()]
-                return points_list[:5] if points_list else None
-            if isinstance(parsed, list):
-                cleaned = [str(item).strip() for item in parsed if str(item).strip()]
-                return cleaned[:5] if cleaned else None
-        except json.JSONDecodeError:
-            pass
-
-        array_match = re.search(r"\[[\s\S]*\]", raw_text)
-        if array_match:
-            try:
-                parsed = json.loads(array_match.group(0))
-                if isinstance(parsed, list):
-                    cleaned = [str(item).strip() for item in parsed if str(item).strip()]
-                    return cleaned[:5] if cleaned else None
-            except json.JSONDecodeError:
-                pass
-
-        lines_raw = [line.strip() for line in raw_text.splitlines() if line.strip()]
-        cleaned_lines = [re.sub(r"^(?:[-*•]\s+)", "", line) for line in lines_raw]
-        cleaned_lines = [line for line in cleaned_lines if line]
-        return cleaned_lines[:5] if cleaned_lines else None
-
-    def fetch_llm_points(text: str) -> list[str] | None:
+    def fetch_llm_detailed_summary(text: str) -> str | None:
         base_url = os.getenv("OLLAMA_URL", "http://localhost:11434").rstrip("/")
         model = model_override or os.getenv("OLLAMA_MODEL", "llama3.1")
         prompt = (
-            "Summarize the following document text into 3 to 5 concise bullet points. "
-            "Return ONLY a JSON array of strings or JSON with a summary_points array. "
-            "Avoid extra commentary.\n\n"
+            "Write a detailed summary that covers the entire page. "
+            "Include all major details in the same order they appear. "
+            "Return plain text only.\n\n"
             f"Document text:\n{text}\n"
         )
         payload = {"model": model, "prompt": prompt, "stream": False, "options": {"temperature": 0.2}}
         try:
             timeout_seconds = float(os.getenv("OLLAMA_TIMEOUT", "60"))
-            with httpx.Client(timeout=timeout_seconds) as client:
-                response = client.post(f"{base_url}/api/generate", json=payload)
-            if response.status_code >= 400:
-                logger.warning("LLM summary failed status=%s", response.status_code)
-                return None
-            data = response.json()
-            response_text = str(data.get("response", ""))
-            return parse_llm_response(response_text)
+            retries = int(os.getenv("OLLAMA_RETRIES", "2"))
+            last_error = None
+            for attempt in range(retries + 1):
+                try:
+                    with httpx.Client(timeout=timeout_seconds) as client:
+                        response = client.post(f"{base_url}/api/generate", json=payload)
+                    if response.status_code >= 400:
+                        last_error = f"http_{response.status_code}"
+                        logger.warning("LLM summary failed status=%s", response.status_code)
+                    else:
+                        data = response.json()
+                        response_text = str(data.get("response", "")).strip()
+                        if response_text:
+                            return response_text
+                        last_error = "empty_response"
+                except Exception as exc:  # pragma: no cover
+                    last_error = "exception"
+                    logger.warning("LLM summary failed error=%s", exc)
+
+            SUMMARY_LLM_FAILURES.labels(reason=last_error or "unknown").inc()
+            return None
         except Exception as exc:  # pragma: no cover
             logger.warning("LLM summary failed error=%s", exc)
+            SUMMARY_LLM_FAILURES.labels(reason="exception").inc()
             return None
+
+    def build_detailed_summary(candidate_raw_lines: list[str]) -> str:
+        if not candidate_raw_lines:
+            return "No text detected"
+        paragraphs: list[list[str]] = []
+        current: list[str] = []
+        for line in candidate_raw_lines:
+            cleaned = " ".join(line.split())
+            if not cleaned:
+                if current:
+                    paragraphs.append(current)
+                    current = []
+                continue
+            if cleaned[-1] not in ".!?":
+                cleaned = f"{cleaned}."
+            current.append(cleaned)
+        if current:
+            paragraphs.append(current)
+
+        paragraph_text = [" ".join(section) for section in paragraphs if section]
+        summary_text = "\n\n".join(paragraph_text).strip()
+        max_chars = int(os.getenv("SUMMARY_MAX_CHARS", "2000"))
+        if max_chars > 0 and len(summary_text) > max_chars:
+            cutoff = max(summary_text.rfind(" ", 0, max_chars - 1), 0)
+            summary_text = summary_text[: cutoff or max_chars - 1].rstrip()
+            summary_text = f"{summary_text}..."
+        return summary_text or "No text detected"
 
     vendor = pick_vendor(lines)
     total_value = pick_total(lines)
     items = pick_items(lines)
     date_value = dates[0] if dates else None
 
-    summary_points_list: list[str] = []
-    if vendor:
-        summary_points_list.append(f"Vendor: {vendor}")
-    if date_value:
-        summary_points_list.append(f"Date: {date_value}")
-    if total_value:
-        summary_points_list.append(f"Total: {total_value}")
-    if items:
-        summary_points_list.append(f"Items: {'; '.join(items)}")
+    detailed_summary = None
     if model_override:
-        llm_points = fetch_llm_points(validated_text)
-        if llm_points:
-            summary_points_list = llm_points
-    if not summary_points_list and lines:
-        summary_points_list = lines[:3]
-
-    summary_points_text = " | ".join(summary_points_list) if summary_points_list else "No text detected"
+        detailed_summary = fetch_llm_detailed_summary(validated_text)
+    if not detailed_summary:
+        detailed_summary = build_detailed_summary(raw_lines)
     date_text = ", ".join(dates[:5]) if dates else "Not detected"
     amount_text = ", ".join(amounts[:5]) if amounts else "Not detected"
     invoice_text = ", ".join(invoice_numbers[:5]) if invoice_numbers else "Not detected"
@@ -408,7 +408,7 @@ def _build_summary_from_text(
     bullet_summary = [
         f"Overview: {line_count} lines · {word_count} words",
         f"Document type: {best_label} ({confidence})",
-        f"Summary points: {summary_points_text}",
+        f"Detailed summary: {detailed_summary}",
         f"Keywords: {keyword_text}",
         f"Dates detected: {date_text}",
         f"Amounts detected: {amount_text}",
@@ -417,7 +417,8 @@ def _build_summary_from_text(
     structured_fields: dict[str, str] = {
         "line_count": str(line_count),
         "word_count": str(word_count),
-        "summary_points": summary_points_text,
+        "summary_points": detailed_summary,
+        "detailed_summary": detailed_summary,
         "dates": date_text,
         "amounts": amount_text,
         "invoice_numbers": invoice_text,
