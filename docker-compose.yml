@@ -1,5 +1,15 @@
 version: "3.9"
 
+# Ollama runs as a separate service in the OLLAMA repo and is shared via
+# the external Docker network `ollama_network`. Start OLLAMA first:
+#
+#   cd ../OLLAMA && docker compose up -d
+#   ../OLLAMA/scripts/pull-models.sh   # wait for health + pull models
+#   cd ../VERA && docker compose up -d
+#
+# VERA's Ollama integration is optional — the app degrades gracefully if
+# Ollama is unavailable (offline summaries still work).
+
 services:
   postgres:
     image: postgres:16
@@ -25,7 +35,7 @@ services:
       - DATABASE_URL=${DATABASE_URL:-postgresql+psycopg://vera:vera@postgres:5432/vera}
       - CELERY_BROKER_URL=${CELERY_BROKER_URL:-redis://redis:6379/0}
       - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND:-redis://redis:6379/0}
-      - OLLAMA_URL=${OLLAMA_URL:-http://host.docker.internal:11434}
+      - OLLAMA_URL=${OLLAMA_URL:-http://ollama:11434}
       - OLLAMA_MODEL=${OLLAMA_MODEL:-llama3.1}
       - OLLAMA_TIMEOUT=${OLLAMA_TIMEOUT:-300}
     volumes:
@@ -35,6 +45,9 @@ services:
     depends_on:
       - postgres
       - redis
+    networks:
+      - default
+      - ollama_network
 
   worker:
     build: ./backend
@@ -44,7 +57,7 @@ services:
       - DATABASE_URL=${DATABASE_URL:-postgresql+psycopg://vera:vera@postgres:5432/vera}
       - CELERY_BROKER_URL=${CELERY_BROKER_URL:-redis://redis:6379/0}
       - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND:-redis://redis:6379/0}
-      - OLLAMA_URL=${OLLAMA_URL:-http://host.docker.internal:11434}
+      - OLLAMA_URL=${OLLAMA_URL:-http://ollama:11434}
       - OLLAMA_MODEL=${OLLAMA_MODEL:-llama3.1}
       - OLLAMA_TIMEOUT=${OLLAMA_TIMEOUT:-300}
     volumes:
@@ -52,6 +65,10 @@ services:
     depends_on:
       - postgres
       - redis
+    networks:
+      - default
+      - ollama_network
+
   frontend:
     build: ./frontend
     environment:
@@ -64,3 +81,8 @@ services:
 
 volumes:
   postgres_data:
+
+networks:
+  ollama_network:
+    external: true
+    name: ollama_network

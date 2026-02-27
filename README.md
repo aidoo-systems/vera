@@ -22,6 +22,17 @@ while document summaries/exports require all pages to be reviewed.
 Validation is a hard gate. Summaries and exports are only available after explicit review completion.
 
 ## Getting Started (Docker, On-Prem)
+
+Ollama is optional but recommended for AI summaries. If using it, start the [OLLAMA repo](../OLLAMA) first:
+
+```bash
+cd ../OLLAMA && docker compose up -d
+./scripts/pull-models.sh llama3.1
+cd ../VERA
+```
+
+Then start VERA:
+
 1. `docker compose up -d --build`
 2. Run migrations: `docker compose exec backend alembic upgrade head`
 3. Frontend: `http://localhost:3000`
@@ -58,8 +69,10 @@ to avoid `DuplicateTable` errors:
 ## Optional LLM summaries (Ollama)
 VERA can optionally call an Ollama instance to generate a detailed summary for each page. Toggle AI summaries from Settings in the UI (the toggle is disabled unless Ollama is reachable).
 
+VERA connects to Ollama via the shared `ollama_network` Docker network (see [OLLAMA repo](../OLLAMA)). Within that network, Ollama is available at `http://ollama:11434`.
+
 Environment variables:
-- `OLLAMA_URL` (default: `http://localhost:11434`)
+- `OLLAMA_URL` (default: `http://ollama:11434` in Docker; `http://localhost:11434` for native dev)
 - `OLLAMA_MODEL` (default: `llama3.1`)
 - `OLLAMA_TIMEOUT` (default: `300` seconds)
 - `OLLAMA_RETRIES` (default: `2`)
@@ -68,8 +81,6 @@ Environment variables:
 When enabled, the backend will call `POST /api/generate` on the Ollama URL and use the returned detailed summary
 in the Summary view. If Ollama is unavailable or times out, the backend falls back to offline detailed summaries
 and the UI shows a warning toast.
-
-If you run the backend in Docker but Ollama runs on your host, set `OLLAMA_URL=http://host.docker.internal:11434`.
 
 ## Status streaming
 Document status updates are available via polling or Server-Sent Events:
