@@ -1,12 +1,16 @@
 from __future__ import annotations
 
+import json
+import logging
 import os
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 try:
     from celery import Celery
+    from celery.schedules import crontab
 except ImportError:  # pragma: no cover
     Celery = None
+    crontab = None
 
 from app.db.session import Base, engine, get_session
 from sqlalchemy import select
@@ -15,6 +19,8 @@ from app.models.documents import AuditLog, Document, DocumentPage
 from app.schemas.documents import DocumentStatus
 from app.services.ocr import run_ocr_for_page
 from app.services.retention import cleanup_documents
+
+logger = logging.getLogger(__name__)
 
 if Celery is None:  # pragma: no cover
     class _CeleryStub:
@@ -42,17 +48,23 @@ else:
         result_serializer="json",
         accept_content=["json"],
         task_track_started=True,
+        task_acks_late=True,
+        task_reject_on_worker_lost=True,
+        worker_prefetch_multiplier=1,
     )
     cleanup_interval_minutes = int(os.getenv("RETENTION_INTERVAL_MINUTES", "1440"))
+    beat_schedule: dict = {
+        "recover-stuck-documents": {
+            "task": "vera.recover_stuck_documents",
+            "schedule": crontab(minute="*/5"),
+        },
+    }
     if cleanup_interval_minutes > 0:
-        celery_app.conf.update(
-            beat_schedule={
-                "vera.cleanup_documents": {
-                    "task": "vera.cleanup_documents",
-                    "schedule": timedelta(minutes=cleanup_interval_minutes),
-                }
-            }
-        )
+        beat_schedule["vera.cleanup_documents"] = {
+            "task": "vera.cleanup_documents",
+            "schedule": timedelta(minutes=cleanup_interval_minutes),
+        }
+    celery_app.conf.update(beat_schedule=beat_schedule)
 
 
 @celery_app.task(name="vera.process_document")
@@ -119,6 +131,49 @@ def process_document(document_id: str) -> dict[str, str]:
             )
             session.commit()
         raise
+
+
+@celery_app.task(name="vera.recover_stuck_documents")
+def recover_stuck_documents() -> dict[str, int]:
+    """Mark documents stuck in processing longer than timeout as failed."""
+    timeout_minutes = int(os.getenv("STUCK_TASK_TIMEOUT_MINUTES", "30"))
+    cutoff = datetime.utcnow() - timedelta(minutes=timeout_minutes)
+    with get_session() as session:
+        stuck_docs = session.execute(
+            select(Document).where(
+                Document.status == DocumentStatus.processing.value,
+                Document.updated_at < cutoff,
+            )
+        ).scalars().all()
+        for doc in stuck_docs:
+            session.execute(
+                Document.__table__.update()
+                .where(Document.id == doc.id)
+                .values(status=DocumentStatus.failed.value, processing_task_id=None)
+            )
+            session.execute(
+                DocumentPage.__table__.update()
+                .where(
+                    DocumentPage.document_id == doc.id,
+                    DocumentPage.status == DocumentStatus.processing.value,
+                )
+                .values(status=DocumentStatus.failed.value)
+            )
+            session.add(
+                AuditLog(
+                    id=os.urandom(16).hex(),
+                    document_id=doc.id,
+                    event_type="auto_failed",
+                    detail=json.dumps({
+                        "reason": "stuck_in_processing",
+                        "timeout_minutes": timeout_minutes,
+                    }),
+                )
+            )
+        session.commit()
+        if stuck_docs:
+            logger.warning("Recovered %d stuck document(s)", len(stuck_docs))
+        return {"recovered": len(stuck_docs)}
 
 
 @celery_app.task(name="vera.cleanup_documents")
