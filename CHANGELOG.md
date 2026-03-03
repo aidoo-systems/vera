@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-03-03
+
 ### Changed
 
 - Ollama connectivity switched from `host.docker.internal:11434` to the shared `ollama_network` Docker network — fixes Linux Docker Engine where `host.docker.internal` is not available
@@ -27,3 +29,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `scripts/backup.sh`: backup script used by the `backup` container
 - `vera.recover_stuck_documents` Celery Beat task: runs every 5 minutes and auto-fails documents stuck in `processing` state longer than `STUCK_TASK_TIMEOUT_MINUTES` (default 30), with an `auto_failed` audit log entry per document
 - New env vars documented in `.env.example`: `BACKUP_HOST_DIR`, `BACKUP_RETENTION_DAYS`, `BACKUP_INTERVAL_SECONDS`, `WORKER_MEMORY_LIMIT`, `WORKER_CPU_LIMIT`, `BACKEND_MEMORY_LIMIT`, `STUCK_TASK_TIMEOUT_MINUTES`
+
+## [1.0.0] - 2026-02-06
+
+### Added
+
+- Initial stable release of VERA (Validated Extraction & Review Assistant)
+- Support for JPG, PNG, and multi-page PDF uploads
+- PaddleOCR local inference — offline, no cloud dependency, no data leaves the network
+- Confidence-based token highlighting: high (≥0.92 auto-accept), medium (review suggested), low (blocks export until corrected)
+- Inline correction UI — edit low-confidence tokens directly on the review page
+- Validation hard gate — summaries and exports only unlock after explicit review completion
+- Multi-page PDF support: per-page review and export; document-level summary/export requires all pages validated
+- Offline detailed summaries with structured pattern extraction (dates, currency amounts, invoice/order IDs, emails, phone numbers, VAT IDs)
+- Optional AI summaries via Ollama (toggled in Settings; gracefully falls back to offline summaries if Ollama is unreachable)
+- SSE status streaming (`GET /documents/{id}/status/stream`) for real-time processing updates
+- PostgreSQL database with Alembic migrations
+- Celery + Redis async worker queue for non-blocking OCR processing
+- Upload security: configurable size limit (`MAX_UPLOAD_MB=25`), MIME validation (`STRICT_MIME_VALIDATION`), optional virus scan hook (`VIRUS_SCAN_COMMAND`)
+- Document retention policy: configurable trigger (`post_export` or `post_review`), mode (`delete` or `archive`), and interval
+- Prometheus metrics at `GET /metrics`; request IDs echoed in `X-Request-ID`
+- Full backend test suite (`pytest`) and frontend component tests (Vitest)
+
+[1.1.0]: https://github.com/aidoo-systems/vera/compare/v1.0.0...v1.1.0
+[1.0.0]: https://github.com/aidoo-systems/vera/releases/tag/v1.0.0
