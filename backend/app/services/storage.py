@@ -53,11 +53,13 @@ def _validate_mime(file_obj: BinaryIO) -> None:
 
 
 def _run_virus_scan(path: str) -> None:
+    import subprocess
+
     command = os.getenv("VIRUS_SCAN_COMMAND")
     if not command:
         return
-    result = os.system(f'{command} "{path}"')
-    if result != 0:
+    result = subprocess.run([command, path], capture_output=True, timeout=120)
+    if result.returncode != 0:
         raise ValueError("virus_detected")
 
 

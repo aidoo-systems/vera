@@ -67,9 +67,8 @@ else:
     celery_app.conf.update(beat_schedule=beat_schedule)
 
 
-@celery_app.task(name="vera.process_document")
+@celery_app.task(name="vera.process_document", time_limit=600, soft_time_limit=540)
 def process_document(document_id: str) -> dict[str, str]:
-    Base.metadata.create_all(bind=engine)
     with get_session() as session:
         document = session.get(Document, document_id)
         if document is None:

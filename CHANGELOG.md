@@ -5,7 +5,28 @@ All notable changes to VERA will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.2.0] - 2026-03-06
+
+### Security
+
+- **Fixed CSV injection vulnerability** in document and page exports — all CSV output now uses `csv.writer` with `QUOTE_ALL` to prevent formula injection in spreadsheet applications
+- **Fixed command injection** in virus scan hook — replaced `os.system()` with `subprocess.run()` using argument list (no shell expansion)
+- Security headers added to all API responses (X-Content-Type-Options, X-Frame-Options, X-XSS-Protection, Referrer-Policy)
+- CORS middleware tightened — `allow_methods` and `allow_headers` now use explicit whitelists instead of wildcards
+- Backend and frontend containers now run as non-root users (`vera`, UID 1001)
+
+### Added
+
+- Healthchecks on `backend`, `redis`, and `frontend` services — all five services now report health status
+- Backend and worker now depend on healthy `postgres` and `redis` (not just container start)
+- Frontend depends on healthy `backend`
+- Celery `process_document` task now has `time_limit=600` and `soft_time_limit=540` to prevent indefinite hangs
+
+### Changed
+
+- Backend Dockerfile log level changed from `debug` to `info` for production use
+- FastAPI version string updated from `0.1.0` to `1.2.0`
+- README overhauled — corrected architecture section (PostgreSQL, not SQLite), added configuration reference tables, security section, and production deployment guide
 
 ## [1.1.0] - 2026-03-03
 
@@ -51,5 +72,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Prometheus metrics at `GET /metrics`; request IDs echoed in `X-Request-ID`
 - Full backend test suite (`pytest`) and frontend component tests (Vitest)
 
+[1.2.0]: https://github.com/aidoo-systems/vera/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/aidoo-systems/vera/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/aidoo-systems/vera/releases/tag/v1.0.0

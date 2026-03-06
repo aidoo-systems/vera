@@ -1,3 +1,5 @@
+import csv
+import io
 import json
 import os
 import uuid
@@ -9,10 +11,10 @@ import time
 import httpx
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, File, HTTPException, UploadFile, Request
+from fastapi import FastAPI, File, HTTPException, UploadFile, Request, Response
 from fastapi.encoders import jsonable_encoder
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, PlainTextResponse, StreamingResponse, Response
+from fastapi.responses import JSONResponse, PlainTextResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from slowapi import Limiter
 from slowapi.errors import RateLimitExceeded
@@ -67,7 +69,7 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title="VERA API", version="0.1.0", lifespan=lifespan)
+app = FastAPI(title="VERA API", version="1.2.0", lifespan=lifespan)
 
 upload_rate_limit = os.getenv("UPLOAD_RATE_LIMIT", "10/minute")
 limiter = Limiter(key_func=get_remote_address)
@@ -79,8 +81,8 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[origin.strip() for origin in cors_origins if origin.strip()],
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type", "X-Request-ID", "X-API-Key"],
 )
 app.add_middleware(SlowAPIMiddleware)
 
@@ -106,6 +108,10 @@ async def log_requests(request: Request, call_next):
         duration_ms,
     )
     response.headers["X-Request-ID"] = request_id
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     return response
 
 
@@ -688,13 +694,15 @@ async def export_document(document_id: str, format: str = "json"):
         return PlainTextResponse(validated_text, media_type="text/plain")
 
     if format.lower() == "csv":
-        lines = ["key,value"]
-        lines.append(f"document_id,{payload['document_id']}")
+        buf = io.StringIO()
+        writer = csv.writer(buf, quoting=csv.QUOTE_ALL)
+        writer.writerow(["key", "value"])
+        writer.writerow(["document_id", payload["document_id"]])
         cleaned_text = payload["validated_text"].replace("\n", " ")
-        lines.append(f"validated_text,{cleaned_text}")
+        writer.writerow(["validated_text", cleaned_text])
         for key, value in payload["structured_fields"].items():
-            lines.append(f"{key},{value}")
-        return PlainTextResponse("\n".join(lines), media_type="text/csv")
+            writer.writerow([key, value])
+        return PlainTextResponse(buf.getvalue(), media_type="text/csv")
 
     return JSONResponse(payload)
 
@@ -741,14 +749,16 @@ async def export_document_page(document_id: str, page_id: str, format: str = "js
         return PlainTextResponse(validated_text, media_type="text/plain")
 
     if format.lower() == "csv":
-        lines = ["key,value"]
-        lines.append(f"document_id,{payload['document_id']}")
-        lines.append(f"page_id,{payload['page_id']}")
+        buf = io.StringIO()
+        writer = csv.writer(buf, quoting=csv.QUOTE_ALL)
+        writer.writerow(["key", "value"])
+        writer.writerow(["document_id", payload["document_id"]])
+        writer.writerow(["page_id", payload["page_id"]])
         cleaned_text = payload["validated_text"].replace("\n", " ")
-        lines.append(f"validated_text,{cleaned_text}")
+        writer.writerow(["validated_text", cleaned_text])
         for key, value in payload["structured_fields"].items():
-            lines.append(f"{key},{value}")
-        return PlainTextResponse("\n".join(lines), media_type="text/csv")
+            writer.writerow([key, value])
+        return PlainTextResponse(buf.getvalue(), media_type="text/csv")
 
     return JSONResponse(payload)
 
