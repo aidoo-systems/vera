@@ -15,6 +15,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Skeleton loaders for OCR processing state (replaces plain alert)
   - Illustrated empty states with SVG icons
   - Modal backdrop blur effect (`blur(4px)`)
+  - Toast slide-out animation on dismiss
+  - Custom thin scrollbars (WebKit + Firefox)
+  - Styled `:focus-visible` outlines for keyboard navigation
+  - Page-level loading bar (animated top bar during uploads/processing)
+  - Illustrated error pages (404/500) via Next.js `error.tsx` and `not-found.tsx`
   - "from ai.doo" branded footer (bottom-left, fixed position, muted style)
 
 ## [1.2.0] - 2026-03-06

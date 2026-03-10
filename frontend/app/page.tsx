@@ -79,6 +79,7 @@ type ToastMessage = {
   id: string;
   message: string;
   variant: "error" | "info";
+  hiding?: boolean;
 };
 
 const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
@@ -157,6 +158,7 @@ export default function HomePage() {
   const [aiEnabled, setAiEnabled] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [ollamaHealth, setOllamaHealth] = useState<{ reachable: boolean } | null>(null);
+  const [pageLoading, setPageLoading] = useState(false);
   const [ollamaWarned, setOllamaWarned] = useState(false);
   const [pageSummaryLoading, setPageSummaryLoading] = useState(false);
   const [documentSummaryLoading, setDocumentSummaryLoading] = useState(false);
@@ -240,13 +242,17 @@ export default function HomePage() {
         : `${Date.now()}-${Math.random()}`;
     setToasts((prev) => [...prev, { id, message, variant }]);
     window.setTimeout(() => {
-      setToasts((prev) => prev.filter((toast) => toast.id !== id));
+      setToasts((prev) => prev.map((toast) => (toast.id === id ? { ...toast, hiding: true } : toast)));
+      window.setTimeout(() => {
+        setToasts((prev) => prev.filter((toast) => toast.id !== id));
+      }, 300);
     }, 5000);
   };
 
   const uploadDocument = async () => {
     if (!file) return;
     setLoading(true);
+    setPageLoading(true);
     setError(null);
     setPageSummaries({});
     setPageSummarySources({});
@@ -298,6 +304,7 @@ export default function HomePage() {
       pushToast(message, "error");
     } finally {
       setLoading(false);
+      setPageLoading(false);
     }
   };
 
@@ -865,12 +872,13 @@ export default function HomePage() {
 
   return (
     <>
+      <div className={`page-loader ${pageLoading ? "active" : ""}`}><div className="page-loader-bar"></div></div>
       {toasts.length ? (
         <div className="toast-stack" role="status" aria-live="polite">
           {toasts.map((toast) => (
             <div
               key={toast.id}
-              className={`toast toast-${toast.variant}`}
+              className={`toast toast-${toast.variant}${toast.hiding ? " hiding" : ""}`}
             >
               {toast.message}
             </div>

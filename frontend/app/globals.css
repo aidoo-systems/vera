@@ -1155,6 +1155,9 @@ body {
     }
 }
 
+.toast.hiding { animation: toast-slide-out 0.3s ease forwards; }
+@keyframes toast-slide-out { to { opacity: 0; transform: translateY(-8px); } }
+
 @media (max-width: 900px) {
     .vera-grid {
         grid-template-columns: 1fr;
@@ -1188,6 +1191,41 @@ body {
         right: var(--space-4);
         max-width: none;
     }
+}
+
+/* ============================================
+   Page Loading Bar
+   ============================================ */
+
+.page-loader {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 3px;
+    z-index: 9999;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+
+.page-loader.active { opacity: 1; }
+
+.page-loader-bar {
+    height: 100%;
+    width: 0%;
+    background: var(--primary);
+    transition: width 0.3s ease;
+}
+
+.page-loader.active .page-loader-bar {
+    animation: page-load 2s ease-in-out infinite;
+}
+
+@keyframes page-load {
+    0% { width: 0%; margin-left: 0; }
+    50% { width: 40%; margin-left: 30%; }
+    100% { width: 0%; margin-left: 100%; }
 }
 
 /* ============================================
@@ -1243,6 +1281,18 @@ body {
 @keyframes fade-up { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 .document-card, .review-card { animation: fade-up 300ms ease; }
 
+/* Custom scrollbars */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+* { scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
+
+/* Focus rings */
+:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; border-radius: var(--radius); }
+button:focus-visible, .btn:focus-visible { outline-offset: 2px; }
+input:focus-visible, textarea:focus-visible, select:focus-visible { outline-offset: 0; }
+
 /* ============================================
    Skeleton Loaders
    ============================================ */
@@ -1262,3 +1312,32 @@ body {
 .empty-state svg { display: block; margin: 0 auto var(--space-4); color: var(--text-muted); opacity: 0.6; }
 .empty-state-title { font-weight: 500; color: var(--text-secondary); margin-bottom: var(--space-1); }
 .empty-state-desc { font-size: 13px; color: var(--text-muted); }
+
+/* ============================================
+   Error Pages
+   ============================================ */
+
+.error-page {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 60vh;
+    text-align: center;
+    padding: var(--space-8);
+}
+
+.error-page svg { color: var(--text-muted); opacity: 0.5; margin-bottom: var(--space-5); }
+
+.error-title {
+    font-size: 48px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: var(--space-2);
+}
+
+.error-message {
+    font-size: 16px;
+    color: var(--text-secondary);
+    margin-bottom: var(--space-6);
+}
