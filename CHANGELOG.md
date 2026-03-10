@@ -21,6 +21,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Page-level loading bar (animated top bar during uploads/processing)
   - Illustrated error pages (404/500) via Next.js `error.tsx` and `not-found.tsx`
   - "from ai.doo" branded footer (bottom-left, fixed position, muted style)
+  - `.btn-ghost` and `.btn-danger` button variant CSS
+  - Upload zone SVG illustration for empty state
+
+### Changed
+
+- Summary bullet lists now use `.summary-points` / `.summary-point` CSS classes (was `.summary-list` / `.summary-item`)
+
+### Removed
+
+- Orphaned CSS: `.skeleton-table-row` (no tables in frontend), `.empty-state` family (upload zone uses own classes), unused `.summary-list` / `.summary-item`
 
 ## [1.2.0] - 2026-03-06
 

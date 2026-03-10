@@ -156,11 +156,11 @@ export function SummaryView({
           {reviewNote ? <div className="summary-review-note">{reviewNote}</div> : null}
         </div>
       ) : (
-        <ul className="summary-list">
+        <ul className="summary-points">
           {bulletSummary.map((item, index) => {
             const needsInput = item.toLowerCase().includes("not detected");
             return (
-              <li key={index} className="summary-item">
+              <li key={index} className="summary-point">
                 <span className="summary-text">{item}</span>
                 <span className={`badge ${needsInput ? "badge-warning" : "badge-success"}`}>
                   {needsInput ? "Needs input" : "Verified"}
