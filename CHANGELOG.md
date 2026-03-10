@@ -5,6 +5,18 @@ All notable changes to VERA will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Premium visual polish** across the frontend
+  - Self-hosted Inter font — consistent typography, no external CDN dependency
+  - Micro-interactions: button press feedback (`scale(0.98)`), card hover lift, modal entrance animations, card entrance animations
+  - Skeleton loaders for OCR processing state (replaces plain alert)
+  - Illustrated empty states with SVG icons
+  - Modal backdrop blur effect (`blur(4px)`)
+  - "from ai.doo" branded footer (bottom-left, fixed position, muted style)
+
 ## [1.2.0] - 2026-03-06
 
 ### Security

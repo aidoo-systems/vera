@@ -990,8 +990,13 @@ export default function HomePage() {
                 </div>
               ) : null}
               {loading && !documentData ? (
-                <div className="alert alert-info">
-                  Running OCR. First run may download model assets.
+                <div className="card" style={{ padding: "var(--space-5)" }}>
+                  <div className="skeleton skeleton-line" style={{ width: "40%" }}></div>
+                  <div className="skeleton skeleton-line skeleton-line-medium"></div>
+                  <div className="skeleton skeleton-line skeleton-line-short"></div>
+                  <div style={{ fontSize: "13px", color: "var(--text-muted)", marginTop: "var(--space-3)" }}>
+                    Running OCR. First run may download model assets.
+                  </div>
                 </div>
               ) : null}
               {processingActive ? (

@@ -10,6 +10,12 @@
     padding: 0;
 }
 
+/* Self-hosted Inter font */
+@font-face { font-family: 'Inter'; font-style: normal; font-weight: 400; font-display: swap; src: url('/fonts/Inter-Regular.woff2') format('woff2'); }
+@font-face { font-family: 'Inter'; font-style: normal; font-weight: 500; font-display: swap; src: url('/fonts/Inter-Medium.woff2') format('woff2'); }
+@font-face { font-family: 'Inter'; font-style: normal; font-weight: 600; font-display: swap; src: url('/fonts/Inter-SemiBold.woff2') format('woff2'); }
+@font-face { font-family: 'Inter'; font-style: normal; font-weight: 700; font-display: swap; src: url('/fonts/Inter-Bold.woff2') format('woff2'); }
+
 :root {
     /* Colors */
     --primary: #2563eb;
@@ -60,7 +66,7 @@
     --radius-full: 9999px;
 
     /* Typography */
-    --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
     --font-mono: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, monospace;
 
     /* Transitions */
@@ -1009,7 +1015,9 @@ body {
 .modal-overlay {
     position: fixed;
     inset: 0;
-    background: rgba(15, 23, 42, 0.45);
+    background: rgba(15, 23, 42, 0.4);
+    -webkit-backdrop-filter: blur(4px);
+    backdrop-filter: blur(4px);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1181,3 +1189,76 @@ body {
         max-width: none;
     }
 }
+
+/* ============================================
+   Suite Footer
+   ============================================ */
+
+.site-footer {
+    position: fixed;
+    bottom: var(--space-3);
+    left: var(--space-4);
+    z-index: 50;
+}
+
+.site-footer a {
+    font-size: 11px;
+    color: rgba(0, 0, 0, 0.35);
+    text-decoration: none;
+    letter-spacing: 0.01em;
+    transition: color var(--transition-fast);
+}
+
+.site-footer a:hover {
+    color: rgba(0, 0, 0, 0.55);
+}
+
+@media (max-width: 900px) {
+    .site-footer {
+        position: static;
+        margin-top: auto;
+        padding: var(--space-4);
+        text-align: center;
+    }
+}
+
+/* ============================================
+   Micro-interactions & Polish
+   ============================================ */
+
+/* Button press feedback */
+.btn:active:not(:disabled) { transform: scale(0.98); }
+
+/* Card hover lift */
+.card { transition: transform var(--transition-fast), box-shadow var(--transition-fast); }
+.document-card:hover, .review-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
+
+/* Modal entrance animations */
+@keyframes modal-fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes modal-scale-in { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+.modal-overlay { animation: modal-fade-in 200ms ease; }
+.modal-panel { animation: modal-scale-in 200ms ease; }
+
+/* Card entrance animation */
+@keyframes fade-up { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+.document-card, .review-card { animation: fade-up 300ms ease; }
+
+/* ============================================
+   Skeleton Loaders
+   ============================================ */
+
+@keyframes skeleton-pulse { 0% { opacity: 1; } 50% { opacity: 0.4; } 100% { opacity: 1; } }
+.skeleton { background: var(--bg-tertiary); border-radius: var(--radius); animation: skeleton-pulse 1.5s ease-in-out infinite; }
+.skeleton-line { height: 14px; margin-bottom: var(--space-2); }
+.skeleton-line-short { width: 60%; }
+.skeleton-line-medium { width: 80%; }
+.skeleton-table-row { display: flex; gap: var(--space-4); padding: var(--space-3) var(--space-5); border-bottom: 1px solid var(--border); }
+.skeleton-table-row > .skeleton { height: 16px; flex: 1; }
+
+/* ============================================
+   Illustrated Empty States
+   ============================================ */
+
+.empty-state svg { display: block; margin: 0 auto var(--space-4); color: var(--text-muted); opacity: 0.6; }
+.empty-state-title { font-weight: 500; color: var(--text-secondary); margin-bottom: var(--space-1); }
+.empty-state-desc { font-size: 13px; color: var(--text-muted); }
