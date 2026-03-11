@@ -74,6 +74,65 @@
     --transition: 200ms ease;
 }
 
+/* Dark Mode */
+[data-theme="dark"] {
+    --primary: #60a5fa;
+    --primary-hover: #3b82f6;
+    --primary-light: rgba(96, 165, 250, 0.15);
+
+    --bg-primary: #1e1e1e;
+    --bg-secondary: #141414;
+    --bg-tertiary: #2a2a2a;
+
+    --text-primary: #f1f5f9;
+    --text-secondary: #94a3b8;
+    --text-muted: #64748b;
+    --text-inverse: #1e1e1e;
+
+    --border: #333333;
+    --border-hover: #444444;
+
+    --success: #4ade80;
+    --success-bg: rgba(74, 222, 128, 0.15);
+    --warning: #facc15;
+    --warning-bg: rgba(250, 204, 21, 0.15);
+    --error: #f87171;
+    --error-bg: rgba(248, 113, 113, 0.15);
+
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+    --shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4);
+    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
+}
+
+[data-theme="dark"] .site-footer a {
+    color: rgba(255, 255, 255, 0.3);
+}
+
+[data-theme="dark"] .site-footer a:hover {
+    color: rgba(255, 255, 255, 0.5);
+}
+
+[data-theme="dark"] .modal-overlay {
+    background: rgba(0, 0, 0, 0.6);
+}
+
+[data-theme="dark"] .toast {
+    background: var(--bg-tertiary);
+}
+
+[data-theme="dark"] .toast-error {
+    border-color: rgba(248, 113, 113, 0.3);
+    color: var(--error);
+    background: var(--error-bg);
+}
+
+[data-theme="dark"] .toast-info {
+    border-color: rgba(96, 165, 250, 0.3);
+    color: var(--primary);
+    background: var(--primary-light);
+}
+
 html {
     font-size: 16px;
     -webkit-font-smoothing: antialiased;

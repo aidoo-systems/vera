@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Header consolidated — removed separate `AppHeader` bar; username, theme toggle, and sign out now inline with Settings in the main page header
+- `.env.example` Ollama default changed from `http://localhost:11434` to `http://ollama:11434` (Docker-correct)
+- Hub env vars (`HUB_BASE_URL`, `HUB_AUTH_API_KEY`) added to Celery worker service in `docker-compose.yml`
+
+### Fixed
+
+- `_read_secret()` crashes with `IsADirectoryError` when Docker auto-creates bind-mount paths as directories — now uses `path.is_file()` instead of `path.exists()`
+- Ollama shown as "unreachable" in Settings — all frontend `fetch()` calls were missing `credentials: "include"`, causing 401 responses from authenticated endpoints
+- Model list and model pull in OllamaConsole also missing credentials
+
 ### Added
 
 - **Premium visual polish** across the frontend

@@ -2,6 +2,7 @@ import csv
 import io
 import json
 import os
+import sys
 import uuid
 
 import asyncio
@@ -11,11 +12,13 @@ import time
 import httpx
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, File, HTTPException, UploadFile, Request, Response
+from fastapi import Depends, FastAPI, File, HTTPException, UploadFile, Request, Response
 from fastapi.encoders import jsonable_encoder
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, PlainTextResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
+from pythonjsonlogger import jsonlogger
 from slowapi import Limiter
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
@@ -28,6 +31,14 @@ from app.services.storage import save_upload
 from app.services.validation import apply_corrections, apply_page_corrections
 from app.services.summary import build_summary, build_page_summary
 from app.services.ollama import list_models, pull_model, stream_pull_model
+from app.services.auth import (
+    create_session,
+    delete_session,
+    get_session as get_auth_session,
+    hub_configured,
+    validate_with_hub,
+)
+from app.middleware.auth import require_auth
 from app.schemas.documents import StructuredFieldsUpdateRequest, ValidateRequest
 from app.db.session import Base, engine, get_session
 from app.models.documents import AuditLog, Document, DocumentPage
@@ -39,9 +50,25 @@ from app.utils.request_id import set_request_id
 from app.utils.metrics import REQUEST_COUNT, REQUEST_LATENCY
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
+
+class CustomJsonFormatter(jsonlogger.JsonFormatter):
+    def add_fields(self, log_record, record, message_dict):
+        super().add_fields(log_record, record, message_dict)
+        log_record["timestamp"] = self.formatTime(record)
+        log_record["level"] = record.levelname
+        log_record["logger"] = record.name
+        if not log_record.get("message"):
+            log_record["message"] = record.getMessage()
+
+
+json_formatter = CustomJsonFormatter()
+json_handler = logging.StreamHandler(sys.stdout)
+json_handler.setFormatter(json_formatter)
+
 logging.basicConfig(
     level=logging.DEBUG,
-    format="%(asctime)s %(levelname)s %(name)s [request_id=%(request_id)s] %(message)s",
+    handlers=[json_handler],
+    force=True,
 )
 
 
@@ -115,9 +142,85 @@ async def log_requests(request: Request, call_next):
     return response
 
 
+# ---------------------------------------------------------------------------
+# Auth endpoints
+# ---------------------------------------------------------------------------
+
+
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+
+@app.post("/api/auth/login")
+@limiter.limit("5/minute")
+async def auth_login(request: Request, body: LoginRequest):
+    """Authenticate via Hub and create a session."""
+    if not hub_configured():
+        raise HTTPException(status_code=503, detail="Authentication not configured")
+
+    user = validate_with_hub(body.username, body.password)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+
+    session_id = create_session({
+        "username": user["username"],
+        "role": user.get("role", "user"),
+        "user_id": user.get("id"),
+    })
+
+    response = JSONResponse({"username": user["username"], "role": user.get("role", "user")})
+    response.set_cookie(
+        key="vera_session",
+        value=session_id,
+        httponly=True,
+        samesite="lax",
+        max_age=86400,
+    )
+    return response
+
+
+@app.post("/api/auth/logout")
+async def auth_logout(request: Request):
+    """Clear the session."""
+    session_id = request.cookies.get("vera_session")
+    if session_id:
+        delete_session(session_id)
+    response = JSONResponse({"status": "ok"})
+    response.delete_cookie("vera_session")
+    return response
+
+
+@app.get("/api/auth/status")
+async def auth_status(request: Request):
+    """Check current auth status."""
+    if not hub_configured():
+        return JSONResponse({"authenticated": True, "auth_required": False})
+
+    session_id = request.cookies.get("vera_session")
+    if not session_id:
+        return JSONResponse({"authenticated": False, "auth_required": True})
+
+    session = get_auth_session(session_id)
+    if not session:
+        return JSONResponse({"authenticated": False, "auth_required": True})
+
+    return JSONResponse({
+        "authenticated": True,
+        "auth_required": True,
+        "username": session.get("username"),
+        "role": session.get("role"),
+    })
+
+
+# ---------------------------------------------------------------------------
+# Document endpoints (auth required)
+# ---------------------------------------------------------------------------
+
+
 @app.post("/documents/upload")
 @limiter.limit(upload_rate_limit)
-async def upload_document(request: Request, file: UploadFile = File(...)):
+async def upload_document(request: Request, file: UploadFile = File(...), _auth=Depends(require_auth)):
     logger.info("Upload started filename=%s", file.filename)
     try:
         document_id, image_path, image_url, pages = save_upload(file)
@@ -212,7 +315,7 @@ async def upload_document(request: Request, file: UploadFile = File(...)):
 
 
 @app.post("/documents/{document_id}/validate")
-async def validate_document(document_id: str, payload: ValidateRequest):
+async def validate_document(document_id: str, payload: ValidateRequest, _auth=Depends(require_auth)):
     logger.info("Validate started document_id=%s review_complete=%s", document_id, payload.review_complete)
     try:
         validated_text, status, validated_at = apply_corrections(
@@ -242,7 +345,7 @@ async def validate_document(document_id: str, payload: ValidateRequest):
 
 
 @app.post("/documents/{document_id}/pages/{page_id}/validate")
-async def validate_document_page(document_id: str, page_id: str, payload: ValidateRequest):
+async def validate_document_page(document_id: str, page_id: str, payload: ValidateRequest, _auth=Depends(require_auth)):
     logger.info(
         "Validate page started document_id=%s page_id=%s review_complete=%s",
         document_id,
@@ -307,7 +410,7 @@ def _build_page_status(session, page: DocumentPage) -> dict:
 
 
 @app.get("/documents/{document_id}")
-async def get_document(document_id: str):
+async def get_document(document_id: str, _auth=Depends(require_auth)):
     logger.debug("Get document document_id=%s", document_id)
     with get_session() as session:
         document = session.get(Document, document_id)
@@ -351,7 +454,7 @@ async def get_document(document_id: str):
 
 
 @app.get("/documents/{document_id}/pages/status")
-async def get_document_page_statuses(document_id: str):
+async def get_document_page_statuses(document_id: str, _auth=Depends(require_auth)):
     logger.debug("Get document statuses document_id=%s", document_id)
     with get_session() as session:
         document = session.get(Document, document_id)
@@ -377,7 +480,7 @@ async def get_document_page_statuses(document_id: str):
 
 
 @app.get("/documents/{document_id}/pages/{page_id}/status")
-async def get_document_page_status(document_id: str, page_id: str):
+async def get_document_page_status(document_id: str, page_id: str, _auth=Depends(require_auth)):
     logger.debug("Get document page status document_id=%s page_id=%s", document_id, page_id)
     with get_session() as session:
         document = session.get(Document, document_id)
@@ -393,7 +496,7 @@ async def get_document_page_status(document_id: str, page_id: str):
 
 
 @app.get("/documents/{document_id}/status/stream")
-async def stream_document_status(document_id: str, interval: float = 2.0):
+async def stream_document_status(document_id: str, interval: float = 2.0, _auth=Depends(require_auth)):
     logger.info("Status stream requested document_id=%s", document_id)
 
     async def event_stream():
@@ -423,7 +526,7 @@ async def stream_document_status(document_id: str, interval: float = 2.0):
 
 
 @app.get("/documents/{document_id}/pages/{page_id}")
-async def get_document_page(document_id: str, page_id: str):
+async def get_document_page(document_id: str, page_id: str, _auth=Depends(require_auth)):
     logger.debug("Get document page document_id=%s page_id=%s", document_id, page_id)
     with get_session() as session:
         document = session.get(Document, document_id)
@@ -476,7 +579,7 @@ async def get_document_page(document_id: str, page_id: str):
 
 
 @app.post("/documents/{document_id}/cancel")
-async def cancel_document(document_id: str):
+async def cancel_document(document_id: str, _auth=Depends(require_auth)):
     logger.info("Cancel requested document_id=%s", document_id)
     if not hasattr(celery_app, "control"):
         raise HTTPException(status_code=503, detail="Background worker is not available")
@@ -523,7 +626,7 @@ async def cancel_document(document_id: str):
 
 
 @app.get("/documents/{document_id}/summary")
-async def get_summary(document_id: str, model: str | None = None):
+async def get_summary(document_id: str, model: str | None = None, _auth=Depends(require_auth)):
     logger.info("Summary requested document_id=%s", document_id)
     try:
         summary = build_summary(document_id, model_override=model)
@@ -538,7 +641,7 @@ async def get_summary(document_id: str, model: str | None = None):
 
 
 @app.get("/documents/{document_id}/pages/{page_id}/summary")
-async def get_page_summary(document_id: str, page_id: str, model: str | None = None):
+async def get_page_summary(document_id: str, page_id: str, model: str | None = None, _auth=Depends(require_auth)):
     logger.info("Summary requested document_id=%s page_id=%s", document_id, page_id)
     try:
         summary = build_page_summary(document_id, page_id, model_override=model)
@@ -553,7 +656,7 @@ async def get_page_summary(document_id: str, page_id: str, model: str | None = N
 
 
 @app.get("/llm/models")
-async def get_llm_models():
+async def get_llm_models(_auth=Depends(require_auth)):
     try:
         models = list_models()
     except httpx.HTTPError:
@@ -562,7 +665,7 @@ async def get_llm_models():
 
 
 @app.get("/llm/health")
-async def get_llm_health():
+async def get_llm_health(_auth=Depends(require_auth)):
     try:
         models = list_models()
     except httpx.HTTPError:
@@ -571,7 +674,7 @@ async def get_llm_health():
 
 
 @app.post("/llm/models/pull")
-async def pull_llm_model(payload: dict):
+async def pull_llm_model(payload: dict, _auth=Depends(require_auth)):
     model = str(payload.get("model", "")).strip()
     if not model:
         raise HTTPException(status_code=400, detail="Model name is required")
@@ -583,7 +686,7 @@ async def pull_llm_model(payload: dict):
 
 
 @app.post("/llm/models/pull/stream")
-async def pull_llm_model_stream(payload: dict):
+async def pull_llm_model_stream(payload: dict, _auth=Depends(require_auth)):
     model = str(payload.get("model", "")).strip()
     if not model:
         raise HTTPException(status_code=400, detail="Model name is required")
@@ -599,7 +702,7 @@ async def pull_llm_model_stream(payload: dict):
 
 
 @app.post("/documents/{document_id}/fields")
-async def update_structured_fields(document_id: str, payload: StructuredFieldsUpdateRequest):
+async def update_structured_fields(document_id: str, payload: StructuredFieldsUpdateRequest, _auth=Depends(require_auth)):
     logger.info("Fields update document_id=%s count=%s", document_id, len(payload.structured_fields))
     with get_session() as session:
         document = session.get(Document, document_id)
@@ -625,7 +728,7 @@ async def update_structured_fields(document_id: str, payload: StructuredFieldsUp
 
 
 @app.get("/documents/{document_id}/audit")
-async def get_audit_log(document_id: str):
+async def get_audit_log(document_id: str, _auth=Depends(require_auth)):
     logger.debug("Audit log requested document_id=%s", document_id)
     with get_session() as session:
         document = session.get(Document, document_id)
@@ -656,7 +759,7 @@ async def get_audit_log(document_id: str):
 
 
 @app.get("/documents/{document_id}/export")
-async def export_document(document_id: str, format: str = "json"):
+async def export_document(document_id: str, format: str = "json", _auth=Depends(require_auth)):
     logger.info("Export requested document_id=%s format=%s", document_id, format)
     with get_session() as session:
         document = session.get(Document, document_id)
@@ -708,7 +811,7 @@ async def export_document(document_id: str, format: str = "json"):
 
 
 @app.get("/documents/{document_id}/pages/{page_id}/export")
-async def export_document_page(document_id: str, page_id: str, format: str = "json"):
+async def export_document_page(document_id: str, page_id: str, format: str = "json", _auth=Depends(require_auth)):
     logger.info("Export requested document_id=%s page_id=%s format=%s", document_id, page_id, format)
     with get_session() as session:
         document = session.get(Document, document_id)

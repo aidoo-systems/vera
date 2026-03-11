@@ -6,6 +6,8 @@ import { ImageOverlay, type TokenBox } from "../components/ImageOverlay";
 import { OllamaConsole } from "../components/OllamaConsole";
 import { TokenList } from "../components/TokenList";
 import { SummaryView } from "../components/SummaryView";
+import { useAuth } from "../components/AuthProvider";
+import { ThemeToggle } from "../components/ThemeToggle";
 
 type DocumentPayload = {
   document_id: string;
@@ -137,6 +139,7 @@ function severityScore(token: TokenBox) {
 }
 
 export default function HomePage() {
+  const { username, logout } = useAuth();
   const [selectedTokenId, setSelectedTokenId] = useState<string | null>(null);
   const [documentData, setDocumentData] = useState<DocumentPayload | null>(null);
   const [pageData, setPageData] = useState<PagePayload | null>(null);
@@ -268,6 +271,7 @@ export default function HomePage() {
       const response = await fetch(`${apiBase}/documents/upload`, {
         method: "POST",
         body: formData,
+        credentials: "include",
       });
 
       if (!response.ok) {
@@ -310,7 +314,7 @@ export default function HomePage() {
 
   const fetchPage = async (documentId: string, pageId: string) => {
     try {
-      const response = await fetch(`${apiBase}/documents/${documentId}/pages/${pageId}`);
+      const response = await fetch(`${apiBase}/documents/${documentId}/pages/${pageId}`, { credentials: "include" });
       if (!response.ok) {
         const message = await getResponseMessage(response, "Failed to load page");
         throw new Error(message);
@@ -330,7 +334,7 @@ export default function HomePage() {
 
   const refreshDocument = async () => {
     if (!documentData) return;
-    const response = await fetch(`${apiBase}/documents/${documentData.document_id}`);
+    const response = await fetch(`${apiBase}/documents/${documentData.document_id}`, { credentials: "include" });
     if (!response.ok) {
       const message = await getResponseMessage(response, "Failed to refresh document");
       throw new Error(message);
@@ -391,7 +395,7 @@ export default function HomePage() {
 
   const fetchPageStatuses = async () => {
     if (!documentData) return;
-    const response = await fetch(`${apiBase}/documents/${documentData.document_id}/pages/status`);
+    const response = await fetch(`${apiBase}/documents/${documentData.document_id}/pages/status`, { credentials: "include" });
     if (!response.ok) {
       const message = await getResponseMessage(response, "Failed to load status");
       throw new Error(message);
@@ -500,6 +504,7 @@ export default function HomePage() {
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
+          credentials: "include",
           body: JSON.stringify({
             corrections: buildCorrectionsPayload(),
             reviewed_token_ids: Array.from(activeReviewedTokenIds),
@@ -544,7 +549,8 @@ export default function HomePage() {
     }
     const modelParam = useAi ? `?model=${encodeURIComponent(selectedModel)}` : "";
     const summaryResponse = await fetch(
-      `${apiBase}/documents/${documentData.document_id}/pages/${pageData.page_id}/summary${modelParam}`
+      `${apiBase}/documents/${documentData.document_id}/pages/${pageData.page_id}/summary${modelParam}`,
+      { credentials: "include" }
     );
     if (!summaryResponse.ok) {
       const message = await getResponseMessage(summaryResponse, "Summary failed");
@@ -563,7 +569,7 @@ export default function HomePage() {
       throw new Error("Select a model to generate AI summaries.");
     }
     const modelParam = useAi ? `?model=${encodeURIComponent(selectedModel)}` : "";
-    const summaryResponse = await fetch(`${apiBase}/documents/${documentData.document_id}/summary${modelParam}`);
+    const summaryResponse = await fetch(`${apiBase}/documents/${documentData.document_id}/summary${modelParam}`, { credentials: "include" });
     if (!summaryResponse.ok) {
       const message = await getResponseMessage(summaryResponse, "Summary failed");
       throw new Error(message);
@@ -578,7 +584,7 @@ export default function HomePage() {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch(`${apiBase}/documents/${documentData.document_id}/export?format=${format}`);
+      const response = await fetch(`${apiBase}/documents/${documentData.document_id}/export?format=${format}`, { credentials: "include" });
       if (!response.ok) {
         const message = await getResponseMessage(response, "Export failed");
         throw new Error(message);
@@ -608,7 +614,8 @@ export default function HomePage() {
     setError(null);
     try {
       const response = await fetch(
-        `${apiBase}/documents/${documentData.document_id}/pages/${pageData.page_id}/export?format=${format}`
+        `${apiBase}/documents/${documentData.document_id}/pages/${pageData.page_id}/export?format=${format}`,
+        { credentials: "include" }
       );
       if (!response.ok) {
         const message = await getResponseMessage(response, "Export failed");
@@ -723,7 +730,7 @@ export default function HomePage() {
 
   const fetchOllamaHealth = async () => {
     try {
-      const response = await fetch(`${apiBase}/llm/health`);
+      const response = await fetch(`${apiBase}/llm/health`, { credentials: "include" });
       if (!response.ok) {
         throw new Error("Ollama is not reachable");
       }
@@ -788,6 +795,7 @@ export default function HomePage() {
     try {
       const response = await fetch(`${apiBase}/documents/${documentData.document_id}/cancel`, {
         method: "POST",
+        credentials: "include",
       });
       if (!response.ok) {
         const message = await getResponseMessage(response, "Cancel failed");
@@ -940,12 +948,15 @@ export default function HomePage() {
           <span className={`status-dot ${statusDotClass}`} />
           <span className="logo">VERA</span>
           <span className="header-divider">/</span>
-          <span className="header-title">Verification-first OCR</span>
+          <span className="header-title">{username || "VERA"}</span>
         </div>
         <div className="header-right">
-          <span className="header-title">JPG, PNG, PDF</span>
+          <ThemeToggle />
           <button type="button" className="btn btn-secondary btn-sm" onClick={() => setSettingsOpen(true)}>
             Settings
+          </button>
+          <button type="button" className="btn btn-ghost btn-sm" onClick={logout}>
+            Sign out
           </button>
         </div>
       </header>

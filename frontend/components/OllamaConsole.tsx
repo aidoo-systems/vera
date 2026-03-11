@@ -38,7 +38,7 @@ export function OllamaConsole({ apiBase, selectedModel, onSelectModel, onToast, 
   const loadModels = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`${apiBase}/llm/models`);
+      const response = await fetch(`${apiBase}/llm/models`, { credentials: "include" });
       if (!response.ok) {
         const message = await response.text();
         throw new Error(message || "Failed to load models");
@@ -69,6 +69,7 @@ export function OllamaConsole({ apiBase, selectedModel, onSelectModel, onToast, 
       const response = await fetch(`${apiBase}/llm/models/pull/stream`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({ model }),
         signal: controller.signal,
       });

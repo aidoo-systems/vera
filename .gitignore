@@ -7,3 +7,4 @@ backend/tests/test_data/
 *.pyc
 .env
 data/
+secrets/
