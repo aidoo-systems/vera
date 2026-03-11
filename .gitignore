@@ -8,3 +8,7 @@ backend/tests/test_data/
 .env
 data/
 secrets/
+
+# Claude Code
+.claude/settings.local.json
+.claude/todo.md
