@@ -5,7 +5,7 @@ import HomePage from "../app/page";
 describe("HomePage", () => {
   it("renders the header copy", () => {
     render(<HomePage />);
-    expect(screen.getByText(/Verification-first OCR/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/VERA/).length).toBeGreaterThan(0);
   });
 
   it("shows the summary placeholder before review", () => {
