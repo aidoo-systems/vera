@@ -786,7 +786,7 @@ async def export_document(document_id: str, format: str = "json", _auth=Depends(
         if document is None:
             raise HTTPException(status_code=404, detail="Document not found")
         document_status = str(document.status)
-        if document_status not in (DocumentStatus.validated.value, DocumentStatus.summarized.value):
+        if document_status not in (DocumentStatus.validated.value, DocumentStatus.summarized.value, DocumentStatus.exported.value):
             raise HTTPException(status_code=409, detail="Document not validated")
 
         validated_text = document.validated_text if document.validated_text is not None else ""
@@ -838,7 +838,7 @@ async def export_document_page(document_id: str, page_id: str, format: str = "js
         page = session.get(DocumentPage, page_id)
         if document is None or page is None or page.document_id != document_id:
             raise HTTPException(status_code=404, detail="Document not found")
-        if page.status not in (DocumentStatus.validated.value, DocumentStatus.summarized.value):
+        if page.status not in (DocumentStatus.validated.value, DocumentStatus.summarized.value, DocumentStatus.exported.value):
             raise HTTPException(status_code=409, detail="Review incomplete")
 
         validated_text = page.validated_text if page.validated_text is not None else ""
