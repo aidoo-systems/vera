@@ -12,7 +12,7 @@ except ImportError:  # pragma: no cover
     Celery = None
     crontab = None
 
-from app.db.session import Base, engine, get_session
+from app.db.session import get_session
 from sqlalchemy import select
 
 from app.models.documents import AuditLog, Document, DocumentPage

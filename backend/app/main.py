@@ -24,7 +24,7 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 from slowapi.middleware import SlowAPIMiddleware
 from slowapi import _rate_limit_exceeded_handler
-from sqlalchemy import case, func, select, update
+from sqlalchemy import func, select, update
 from sqlalchemy import text as sql_text
 
 from app.services.storage import save_upload

@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 
 from app.db.session import Base, engine, get_session
 from app.main import app
-from app.models.documents import AuditLog, Correction, Document, DocumentPage, Token
+from app.models.documents import Document, DocumentPage, Token
 from app.schemas.documents import DocumentStatus
 from app.services import summary as summary_service
 

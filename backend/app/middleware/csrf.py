@@ -6,7 +6,7 @@ from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
 
-from app.services.auth import generate_csrf_token, validate_csrf_token
+from app.services.auth import validate_csrf_token
 
 logger = logging.getLogger(__name__)
 

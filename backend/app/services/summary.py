@@ -320,10 +320,9 @@ def _build_summary_from_text(
             summary_text = f"{summary_text}..."
         return summary_text or "No text detected"
 
-    vendor = pick_vendor(lines)
-    total_value = pick_total(lines)
-    items = pick_items(lines)
-    date_value = dates[0] if dates else None
+    pick_vendor(lines)
+    pick_total(lines)
+    pick_items(lines)
 
     detailed_summary = None
     if model_override:

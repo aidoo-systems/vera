@@ -6,8 +6,6 @@ import os
 import secrets
 import time
 from pathlib import Path
-from threading import Lock
-from urllib.parse import urlparse
 
 import httpx
 import redis
