@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import json
 import uuid
-from unittest.mock import patch
 
+import pytest
 from fastapi.testclient import TestClient
 
 from app.db.session import Base, engine, get_session
@@ -12,9 +12,12 @@ from app.models.documents import Document, DocumentPage, Token
 from app.schemas.documents import DocumentStatus
 from app.services import summary as summary_service
 
-# Bypass CSRF validation — these tests exercise document logic, not CSRF.
-_csrf_patch = patch("app.middleware.csrf.validate_csrf_token", return_value=True)
-_csrf_patch.start()
+
+@pytest.fixture(autouse=True)
+def _bypass_csrf(monkeypatch):
+    """Bypass CSRF validation — these tests exercise document logic, not CSRF."""
+    monkeypatch.setattr("app.middleware.csrf.validate_csrf_token", lambda token: True)
+
 
 client = TestClient(app)
 
