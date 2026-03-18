@@ -182,10 +182,12 @@ async def auth_login(request: Request, body: LoginRequest):
     })
 
     response = JSONResponse({"username": user["username"], "role": user.get("role", "user")})
+    secure_cookie = os.getenv("SECURE_COOKIES", "true").lower() == "true"
     response.set_cookie(
         key="vera_session",
         value=session_id,
         httponly=True,
+        secure=secure_cookie,
         samesite="lax",
         max_age=86400,
     )

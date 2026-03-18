@@ -124,6 +124,12 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "celery", "-A", "app.worker.celery_app", "inspect", "ping", "--timeout", "5"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
     restart: unless-stopped
     networks:
       - default
@@ -140,6 +146,30 @@ services:
           cpus: '${WORKER_CPU_LIMIT:-2.0}'
         reservations:
           memory: 1G
+
+  beat:
+    build: ./backend
+    command: ["celery", "-A", "app.worker.celery_app", "beat", "--loglevel=info"]
+    environment:
+      - DATABASE_URL=${DATABASE_URL:-postgresql+psycopg://vera:vera@postgres:5432/vera}
+      - CELERY_BROKER_URL=${CELERY_BROKER_URL:-redis://:${REDIS_PASSWORD:-vera_redis}@redis:6379/0}
+      - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND:-redis://:${REDIS_PASSWORD:-vera_redis}@redis:6379/0}
+      - STUCK_TASK_TIMEOUT_MINUTES=${STUCK_TASK_TIMEOUT_MINUTES:-30}
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - default
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          memory: 256M
 
   frontend:
     build: ./frontend
