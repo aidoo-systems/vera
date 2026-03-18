@@ -1,25 +1,30 @@
 """Authentication service — validates credentials against Hub."""
 
+import json
 import logging
 import os
 import secrets
 import time
 from pathlib import Path
 from threading import Lock
+from urllib.parse import urlparse
 
 import httpx
+import redis
 
 logger = logging.getLogger(__name__)
 
-# In-memory session storage
-_sessions: dict[str, dict] = {}
-_sessions_lock = Lock()
 SESSION_MAX_AGE = 86400  # 24 hours
-
-# CSRF token storage
-_csrf_tokens: dict[str, tuple[str, float]] = {}
-_csrf_lock = Lock()
 CSRF_TOKEN_MAX_AGE = 3600  # 1 hour
+
+SESSION_PREFIX = "vera:session:"
+CSRF_PREFIX = "vera:csrf:"
+
+
+def _get_redis() -> redis.Redis:
+    """Get a Redis connection using the Celery broker URL."""
+    url = os.environ.get("CELERY_BROKER_URL", "redis://redis:6379/0")
+    return redis.from_url(url, decode_responses=True)
 
 
 def _read_secret(name: str, fallback_env: str = "") -> str:
@@ -41,6 +46,50 @@ def _get_hub_api_key() -> str:
 def hub_configured() -> bool:
     """Check if Hub integration is configured."""
     return bool(_get_hub_base_url() and _get_hub_api_key())
+
+
+# License cache
+_license_cache: dict | None = None
+_license_cache_time: float = 0
+_LICENSE_CACHE_TTL = 3600  # 1 hour
+
+
+def check_license() -> dict:
+    """Check license status from Hub. Cached for 1 hour."""
+    global _license_cache, _license_cache_time
+
+    if _license_cache and (time.time() - _license_cache_time) < _LICENSE_CACHE_TTL:
+        return _license_cache
+
+    hub_url = _get_hub_base_url()
+    hub_key = _get_hub_api_key()
+
+    if not hub_url or not hub_key:
+        result = {"valid": False, "error": "Hub not configured", "products": [], "seats": 0}
+        _license_cache = result
+        _license_cache_time = time.time()
+        return result
+
+    try:
+        resp = httpx.get(
+            f"{hub_url}/api/license/status",
+            headers={"Authorization": f"Bearer {hub_key}"},
+            timeout=10.0,
+        )
+        if resp.status_code == 200:
+            result = resp.json()
+            _license_cache = result
+            _license_cache_time = time.time()
+            return result
+    except httpx.HTTPError as exc:
+        logger.error("License check failed: %s", exc)
+        if _license_cache:
+            return _license_cache
+
+    result = {"valid": False, "error": "License check failed", "products": [], "seats": 0}
+    _license_cache = result
+    _license_cache_time = time.time()
+    return result
 
 
 def validate_with_hub(username: str, password: str) -> dict | None:
@@ -79,65 +128,44 @@ def validate_with_hub(username: str, password: str) -> dict | None:
 
 
 def create_session(user_data: dict) -> str:
-    """Create a new session. Returns session ID."""
+    """Create a new session in Redis. Returns session ID."""
     session_id = secrets.token_urlsafe(32)
-    with _sessions_lock:
-        _cleanup_expired()
-        _sessions[session_id] = {
-            **user_data,
-            "created_at": time.time(),
-        }
+    r = _get_redis()
+    data = {**user_data, "created_at": time.time()}
+    r.setex(f"{SESSION_PREFIX}{session_id}", SESSION_MAX_AGE, json.dumps(data))
     return session_id
 
 
 def get_session(session_id: str) -> dict | None:
-    """Get session data. Returns None if expired or missing."""
-    with _sessions_lock:
-        session = _sessions.get(session_id)
-        if session:
-            if time.time() - session.get("created_at", 0) > SESSION_MAX_AGE:
-                del _sessions[session_id]
-                return None
-        return session
+    """Get session data from Redis. Returns None if expired or missing."""
+    r = _get_redis()
+    raw = r.get(f"{SESSION_PREFIX}{session_id}")
+    if not raw:
+        return None
+    return json.loads(raw)
 
 
 def delete_session(session_id: str) -> None:
-    """Delete a session."""
-    with _sessions_lock:
-        _sessions.pop(session_id, None)
-
-
-def _cleanup_expired() -> None:
-    """Remove expired sessions (must be called under lock)."""
-    now = time.time()
-    expired = [sid for sid, data in _sessions.items() if now - data.get("created_at", 0) > SESSION_MAX_AGE]
-    for sid in expired:
-        del _sessions[sid]
+    """Delete a session from Redis."""
+    r = _get_redis()
+    r.delete(f"{SESSION_PREFIX}{session_id}")
 
 
 def generate_csrf_token(session_id: str = "") -> str:
-    """Generate a CSRF token."""
+    """Generate a CSRF token and store it in Redis."""
     token = secrets.token_urlsafe(32)
-    with _csrf_lock:
-        now = time.time()
-        expired = [t for t, (_, created) in _csrf_tokens.items() if now - created > CSRF_TOKEN_MAX_AGE]
-        for t in expired:
-            del _csrf_tokens[t]
-        _csrf_tokens[token] = (session_id, now)
+    r = _get_redis()
+    data = json.dumps({"session_id": session_id, "created_at": time.time()})
+    r.setex(f"{CSRF_PREFIX}{token}", CSRF_TOKEN_MAX_AGE, data)
     return token
 
 
 def validate_csrf_token(token: str | None) -> bool:
-    """Validate and consume a CSRF token."""
+    """Validate and consume a CSRF token from Redis."""
     if not token:
         return False
-    with _csrf_lock:
-        data = _csrf_tokens.get(token)
-        if not data:
-            return False
-        _, created_at = data
-        if time.time() - created_at > CSRF_TOKEN_MAX_AGE:
-            del _csrf_tokens[token]
-            return False
-        del _csrf_tokens[token]
-        return True
+    r = _get_redis()
+    key = f"{CSRF_PREFIX}{token}"
+    # Atomic get-and-delete
+    raw = r.getdel(key)
+    return raw is not None

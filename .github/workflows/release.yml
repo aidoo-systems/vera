@@ -1,0 +1,38 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install git-cliff
+        uses: orhun/git-cliff-action@v4
+        id: generate-notes
+        with:
+          config: cliff.toml
+          args: --current --strip header
+
+      - name: Create GitHub Release
+        run: |
+          set -e
+          TAG="${{ github.ref_name }}"
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            echo "Release $TAG already exists, skipping."
+          else
+            echo "Creating release $TAG..."
+            gh release create "$TAG" --notes "${{ steps.generate-notes.outputs.content }}"
+            echo "Release $TAG created successfully."
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

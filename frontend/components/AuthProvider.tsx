@@ -11,6 +11,8 @@ type AuthState = {
   username: string | null;
   role: string | null;
   loading: boolean;
+  csrfToken: string | null;
+  refreshCsrfToken: () => Promise<string | null>;
   logout: () => Promise<void>;
 };
 
@@ -20,6 +22,8 @@ const AuthContext = createContext<AuthState>({
   username: null,
   role: null,
   loading: true,
+  csrfToken: null,
+  refreshCsrfToken: async () => null,
   logout: async () => {},
 });
 
@@ -28,15 +32,30 @@ export function useAuth() {
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<Omit<AuthState, "logout" | "loading">>({
+  const [state, setState] = useState<Omit<AuthState, "logout" | "loading" | "csrfToken" | "refreshCsrfToken">>({
     authenticated: false,
     authRequired: false,
     username: null,
     role: null,
   });
   const [loading, setLoading] = useState(true);
+  const [csrfToken, setCsrfToken] = useState<string | null>(null);
   const router = useRouter();
   const pathname = usePathname();
+
+  async function fetchCsrfToken(): Promise<string | null> {
+    try {
+      const resp = await fetch(`${API_BASE}/api/csrf-token`, { credentials: "include" });
+      if (resp.ok) {
+        const data = await resp.json();
+        setCsrfToken(data.csrf_token);
+        return data.csrf_token;
+      }
+    } catch {
+      // ignore
+    }
+    return null;
+  }
 
   useEffect(() => {
     async function checkAuth() {
@@ -53,6 +72,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
           if (data.auth_required && !data.authenticated && pathname !== "/login") {
             router.replace("/login");
+          }
+
+          if (data.authenticated) {
+            await fetchCsrfToken();
           }
         }
       } catch {
@@ -71,6 +94,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch {
       // ignore
     }
+    setCsrfToken(null);
     setState({ authenticated: false, authRequired: true, username: null, role: null });
     router.replace("/login");
   }
@@ -89,7 +113,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ ...state, loading, logout }}>
+    <AuthContext.Provider value={{ ...state, loading, csrfToken, refreshCsrfToken: fetchCsrfToken, logout }}>
       {children}
     </AuthContext.Provider>
   );

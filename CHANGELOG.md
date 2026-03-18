@@ -7,20 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Changed
+## [1.3.0] - 2026-03-18
 
-- Header consolidated — removed separate `AppHeader` bar; username, theme toggle, and sign out now inline with Settings in the main page header
-- `.env.example` Ollama default changed from `http://localhost:11434` to `http://ollama:11434` (Docker-correct)
-- Hub env vars (`HUB_BASE_URL`, `HUB_AUTH_API_KEY`) added to Celery worker service in `docker-compose.yml`
+### Security
 
-### Fixed
-
-- `_read_secret()` crashes with `IsADirectoryError` when Docker auto-creates bind-mount paths as directories — now uses `path.is_file()` instead of `path.exists()`
-- Ollama shown as "unreachable" in Settings — all frontend `fetch()` calls were missing `credentials: "include"`, causing 401 responses from authenticated endpoints
-- Model list and model pull in OllamaConsole also missing credentials
+- **CSRF enforcement** — new middleware validates `X-CSRF-Token` header on all mutating requests. Tokens are one-time-use, stored in Redis
+- **Redis-backed sessions** — replaced in-memory `_sessions` dict with Redis (reuses Celery broker). Sessions survive backend restarts
+- **Production frontend build** — Dockerfile rewritten as multi-stage build (`npm run build` → Next.js standalone output). No longer runs `npm run dev` in production
 
 ### Added
 
+- **License check** — VERA queries Hub's `/api/license/status` on startup (cached 1 hour). Logs warning if unlicensed; no feature gates
+- `GET /api/csrf-token` endpoint — frontend fetches fresh token before each mutating request
+- `output: "standalone"` in `next.config.js` for optimised production builds
 - **Premium visual polish** across the frontend
   - Self-hosted Inter font — consistent typography, no external CDN dependency
   - Micro-interactions: button press feedback (`scale(0.98)`), card hover lift, modal entrance animations, card entrance animations
@@ -38,7 +37,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Header consolidated — removed separate `AppHeader` bar; username, theme toggle, and sign out now inline with Settings in the main page header
+- `.env.example` Ollama default changed from `http://localhost:11434` to `http://ollama:11434` (Docker-correct)
+- Hub env vars (`HUB_BASE_URL`, `HUB_AUTH_API_KEY`) added to Celery worker service in `docker-compose.yml`
 - Summary bullet lists now use `.summary-points` / `.summary-point` CSS classes (was `.summary-list` / `.summary-item`)
+- Frontend API base URL fallback corrected from `:8000` to `:4000`
+
+### Fixed
+
+- `_read_secret()` crashes with `IsADirectoryError` when Docker auto-creates bind-mount paths as directories — now uses `path.is_file()` instead of `path.exists()`
+- Ollama shown as "unreachable" in Settings — all frontend `fetch()` calls were missing `credentials: "include"`, causing 401 responses from authenticated endpoints
+- Model list and model pull in OllamaConsole also missing credentials
 
 ### Removed
 

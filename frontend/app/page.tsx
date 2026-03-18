@@ -84,7 +84,7 @@ type ToastMessage = {
   hiding?: boolean;
 };
 
-const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
+const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000";
 
 const getResponseMessage = async (response: Response, fallback: string) => {
   let detail = "";
@@ -139,7 +139,7 @@ function severityScore(token: TokenBox) {
 }
 
 export default function HomePage() {
-  const { username, logout } = useAuth();
+  const { username, logout, csrfToken, refreshCsrfToken } = useAuth();
   const [selectedTokenId, setSelectedTokenId] = useState<string | null>(null);
   const [documentData, setDocumentData] = useState<DocumentPayload | null>(null);
   const [pageData, setPageData] = useState<PagePayload | null>(null);
@@ -252,6 +252,11 @@ export default function HomePage() {
     }, 5000);
   };
 
+  const getCsrfHeaders = async (): Promise<Record<string, string>> => {
+    const token = await refreshCsrfToken();
+    return token ? { "X-CSRF-Token": token } : {};
+  };
+
   const uploadDocument = async () => {
     if (!file) return;
     setLoading(true);
@@ -268,10 +273,12 @@ export default function HomePage() {
     try {
       const formData = new FormData();
       formData.append("file", file);
+      const csrf = await getCsrfHeaders();
       const response = await fetch(`${apiBase}/documents/upload`, {
         method: "POST",
         body: formData,
         credentials: "include",
+        headers: csrf,
       });
 
       if (!response.ok) {
@@ -499,11 +506,12 @@ export default function HomePage() {
     setLoading(true);
     setError(null);
     try {
+      const csrf = await getCsrfHeaders();
       const response = await fetch(
         `${apiBase}/documents/${documentData.document_id}/pages/${pageData.page_id}/validate`,
         {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", ...csrf },
           credentials: "include",
           body: JSON.stringify({
             corrections: buildCorrectionsPayload(),
@@ -793,9 +801,11 @@ export default function HomePage() {
     setLoading(true);
     setError(null);
     try {
+      const csrf = await getCsrfHeaders();
       const response = await fetch(`${apiBase}/documents/${documentData.document_id}/cancel`, {
         method: "POST",
         credentials: "include",
+        headers: csrf,
       });
       if (!response.ok) {
         const message = await getResponseMessage(response, "Cancel failed");
@@ -932,6 +942,7 @@ export default function HomePage() {
                   selectedModel={selectedModel}
                   onSelectModel={setSelectedModel}
                   onToast={pushToast}
+                  getCsrfHeaders={getCsrfHeaders}
                   disabled={interactionDisabled}
                 />
               ) : !ollamaConnected ? (

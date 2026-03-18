@@ -5,10 +5,11 @@ type OllamaConsoleProps = {
   selectedModel: string;
   onSelectModel: (value: string) => void;
   onToast: (message: string, variant?: "error" | "info") => void;
+  getCsrfHeaders?: () => Promise<Record<string, string>>;
   disabled?: boolean;
 };
 
-export function OllamaConsole({ apiBase, selectedModel, onSelectModel, onToast, disabled = false }: OllamaConsoleProps) {
+export function OllamaConsole({ apiBase, selectedModel, onSelectModel, onToast, getCsrfHeaders, disabled = false }: OllamaConsoleProps) {
   const [models, setModels] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [pulling, setPulling] = useState(false);
@@ -66,9 +67,10 @@ export function OllamaConsole({ apiBase, selectedModel, onSelectModel, onToast, 
     const controller = new AbortController();
     setPullController(controller);
     try {
+      const csrf = getCsrfHeaders ? await getCsrfHeaders() : {};
       const response = await fetch(`${apiBase}/llm/models/pull/stream`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...csrf },
         credentials: "include",
         body: JSON.stringify({ model }),
         signal: controller.signal,

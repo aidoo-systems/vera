@@ -32,13 +32,16 @@ from app.services.validation import apply_corrections, apply_page_corrections
 from app.services.summary import build_summary, build_page_summary
 from app.services.ollama import list_models, pull_model, stream_pull_model
 from app.services.auth import (
+    check_license,
     create_session,
     delete_session,
+    generate_csrf_token,
     get_session as get_auth_session,
     hub_configured,
     validate_with_hub,
 )
 from app.middleware.auth import require_auth
+from app.middleware.csrf import CSRFMiddleware
 from app.schemas.documents import StructuredFieldsUpdateRequest, ValidateRequest
 from app.db.session import Base, engine, get_session
 from app.models.documents import AuditLog, Document, DocumentPage
@@ -93,10 +96,18 @@ logger = logging.getLogger("vera")
 async def lifespan(app: FastAPI):
     logger.info("Startup: initializing database")
     Base.metadata.create_all(bind=engine)
+
+    # Check license with Hub
+    license_status = check_license()
+    if license_status.get("valid"):
+        logger.info("License valid for VERA — customer=%s", license_status.get("customer"))
+    else:
+        logger.warning("VERA is unlicensed: %s", license_status.get("error", "unknown"))
+
     yield
 
 
-app = FastAPI(title="VERA API", version="1.2.0", lifespan=lifespan)
+app = FastAPI(title="VERA API", version="1.3.0", lifespan=lifespan)
 
 upload_rate_limit = os.getenv("UPLOAD_RATE_LIMIT", "10/minute")
 limiter = Limiter(key_func=get_remote_address)
@@ -109,9 +120,10 @@ app.add_middleware(
     allow_origins=[origin.strip() for origin in cors_origins if origin.strip()],
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allow_headers=["Content-Type", "X-Request-ID", "X-API-Key"],
+    allow_headers=["Content-Type", "X-Request-ID", "X-API-Key", "X-CSRF-Token"],
 )
 app.add_middleware(SlowAPIMiddleware)
+app.add_middleware(CSRFMiddleware)
 
 data_dir = os.getenv("DATA_DIR", "./data")
 app.mount("/files", StaticFiles(directory=data_dir), name="files")
@@ -211,6 +223,14 @@ async def auth_status(request: Request):
         "username": session.get("username"),
         "role": session.get("role"),
     })
+
+
+@app.get("/api/csrf-token")
+async def get_csrf_token(request: Request):
+    """Issue a CSRF token for the current session."""
+    session_id = request.cookies.get("vera_session", "")
+    token = generate_csrf_token(session_id)
+    return JSONResponse({"csrf_token": token})
 
 
 # ---------------------------------------------------------------------------
