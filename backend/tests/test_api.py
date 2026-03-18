@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import uuid
+from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 
@@ -11,6 +12,9 @@ from app.models.documents import Document, DocumentPage, Token
 from app.schemas.documents import DocumentStatus
 from app.services import summary as summary_service
 
+# Bypass CSRF validation — these tests exercise document logic, not CSRF.
+_csrf_patch = patch("app.middleware.csrf.validate_csrf_token", return_value=True)
+_csrf_patch.start()
 
 client = TestClient(app)
 
