@@ -69,7 +69,7 @@ json_handler = logging.StreamHandler(sys.stdout)
 json_handler.setFormatter(json_formatter)
 
 logging.basicConfig(
-    level=logging.DEBUG,
+    level=getattr(logging, os.getenv("LOG_LEVEL", "INFO").upper(), logging.INFO),
     handlers=[json_handler],
     force=True,
 )
@@ -521,6 +521,8 @@ async def get_document_page_status(document_id: str, page_id: str, _auth=Depends
 async def stream_document_status(document_id: str, interval: float = 2.0, _auth=Depends(require_auth)):
     logger.info("Status stream requested document_id=%s", document_id)
 
+    terminal_statuses = {"ocr_done", "validated", "summarized", "exported", "failed", "canceled"}
+
     async def event_stream():
         while True:
             with get_session() as session:
@@ -541,7 +543,10 @@ async def stream_document_status(document_id: str, interval: float = 2.0, _auth=
                     "review_complete": bool(getattr(document, "review_complete_at")),
                     "pages": [_build_page_status(session, page) for page in pages],
                 }
+                is_terminal = document.status in terminal_statuses
             yield f"data: {json.dumps(payload)}\n\n"
+            if is_terminal:
+                break
             await asyncio.sleep(max(0.5, interval))
 
     return StreamingResponse(event_stream(), media_type="text/event-stream")
