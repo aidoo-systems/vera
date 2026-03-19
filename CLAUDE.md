@@ -49,7 +49,7 @@ vera/
 │   ├── components/        # React components
 │   ├── package.json
 │   └── vitest.config.ts
-├── docker-compose.yml     # 5 services
+├── docker-compose.yml     # 7 services
 ├── cliff.toml
 └── CHANGELOG.md
 ```
@@ -61,16 +61,18 @@ vera/
 | backend (FastAPI) | :4000 | REST API |
 | frontend (Next.js) | :3000 | Web UI |
 | worker (Celery) | — | Async OCR + summaries |
+| beat (Celery Beat) | — | Stuck-task recovery scheduler |
 | postgres | :5432 | Primary database |
-| redis | :6379 | Celery broker + cache |
+| redis | :6379 | Celery broker + sessions |
+| backup | — | Scheduled pg_dump backups |
 
 ## Architecture Notes
 
 - **Document lifecycle:** `uploaded → ocr_done → review_in_progress → validated → summarized → exported`
 - **Validation is a hard gate** — summaries and exports only unlock after explicit human review
 - **Celery worker** runs OCR (PaddleOCR) and AI summaries in background tasks
+- **Auth:** all authentication delegated to Hub (required) — no local auth fallback
 - **Alembic** manages PostgreSQL schema — always run migrations after pulling
-- **Unreleased additions:** Redis AOF persistence, `task_acks_late`, stuck-document recovery Beat task, PostgreSQL backup service, `ollama_network` migration, resource limits
 
 ## Key Environment Variables
 
@@ -82,11 +84,15 @@ vera/
 | `OLLAMA_MODEL` | `llama3.1` | Model for summaries |
 | `MAX_UPLOAD_MB` | `25` | Max upload file size |
 | `RETENTION_DAYS` | `30` | Document retention period |
+| `HUB_BASE_URL` | — | **Required.** Hub URL for auth |
+| `HUB_AUTH_API_KEY` | — | **Required.** Hub API key |
+| `LOG_LEVEL` | `INFO` | Logging verbosity |
+| `SECURE_COOKIES` | `true` | Session cookie Secure flag |
 
 ## Things to Watch Out For
 
 - Always run `alembic upgrade head` after pulling — migrations may have been added
 - Backend is Python 3.10+ (not 3.11+ like other suite repos)
-- 5 Docker services — check all are healthy with `docker compose ps`
+- 7 Docker services — check all are healthy with `docker compose ps`
 - Stuck documents can occur if worker crashes mid-OCR — Beat task recovers these
 - Frontend and backend are separate projects with separate dependency management

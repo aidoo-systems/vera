@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- Session cookie now sets `secure=true` by default (configurable via `SECURE_COOKIES` env var)
+
+### Added
+
+- **Celery Beat service** in `docker-compose.yml` for stuck-task recovery scheduling
+- **Worker Docker healthcheck** via `celery inspect ping`
+- `LOG_LEVEL` env var to control logging verbosity (default: `INFO`, was hardcoded to `DEBUG`)
+- `SECURE_COOKIES` env var to control session cookie `Secure` flag
+
+### Fixed
+
+- Default logging level changed from `DEBUG` to `INFO` — prevents excessive log output in production
+- SSE status stream (`/documents/{id}/status/stream`) now terminates when document reaches a terminal status (`ocr_done`, `validated`, `summarized`, `exported`, `failed`, `canceled`)
+- Re-export bug: documents in `exported` status can now be re-exported (was blocked by missing status check)
+
 ## [1.3.0] - 2026-03-18
 
 ### Security
