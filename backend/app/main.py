@@ -99,10 +99,11 @@ async def lifespan(app: FastAPI):
 
     # Check license with Hub
     license_status = check_license()
+    app.state.enforcement_level = license_status.get("enforcement_level", "grace")
     if license_status.get("valid"):
-        logger.info("License valid for VERA — customer=%s", license_status.get("customer"))
+        logger.info("License valid for VERA — customer=%s, enforcement=%s", license_status.get("customer"), app.state.enforcement_level)
     else:
-        logger.warning("VERA is unlicensed: %s", license_status.get("error", "unknown"))
+        logger.warning("VERA is unlicensed: %s (enforcement=%s)", license_status.get("error", "unknown"), app.state.enforcement_level)
 
     yield
 
@@ -152,6 +153,37 @@ async def log_requests(request: Request, call_next):
     response.headers["X-XSS-Protection"] = "1; mode=block"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     return response
+
+
+@app.middleware("http")
+async def license_enforcement_middleware(request: Request, call_next):
+    """Block write operations when license is in soft/hard enforcement."""
+    from app.services.auth import get_enforcement_level, is_path_enforcement_exempt
+
+    path = request.url.path
+    if is_path_enforcement_exempt(path):
+        return await call_next(request)
+
+    level = get_enforcement_level()
+
+    if level == "hard":
+        return JSONResponse(
+            status_code=402,
+            content={"detail": "License expired — system locked. Contact your administrator."},
+        )
+
+    if level == "soft":
+        # Block uploads, OCR, and new queries in soft mode.
+        # Allow: viewing documents, exporting existing, admin functions, auth.
+        blocked_prefixes = ("/documents/upload",)
+        is_blocked = any(path.startswith(bp) for bp in blocked_prefixes)
+        if is_blocked and request.method in ("POST", "PUT", "PATCH"):
+            return JSONResponse(
+                status_code=402,
+                content={"detail": "License expired — read-only mode. Renew your license to restore full access."},
+            )
+
+    return await call_next(request)
 
 
 # ---------------------------------------------------------------------------
@@ -891,6 +923,13 @@ async def export_document_page(document_id: str, page_id: str, format: str = "js
         return PlainTextResponse(buf.getvalue(), media_type="text/csv")
 
     return JSONResponse(payload)
+
+
+@app.get("/api/license/status")
+async def license_status_proxy(_auth=Depends(require_auth)):
+    """Proxy license status from Hub for the frontend."""
+    status = check_license()
+    return JSONResponse(status)
 
 
 @app.get("/health")

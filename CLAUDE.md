@@ -73,6 +73,7 @@ vera/
 - **Celery worker** runs OCR (PaddleOCR) and AI summaries in background tasks
 - **Auth:** all authentication delegated to Hub (required) — no local auth fallback
 - **Alembic** manages PostgreSQL schema — always run migrations after pulling
+- **License enforcement:** middleware checks Hub's `enforcement_level` hourly. Soft mode blocks uploads (402). Hard mode blocks all except `/health`, auth endpoints, and static files. Frontend can check `GET /api/license/status`. See `services/auth.py`.
 
 ## Key Environment Variables
 

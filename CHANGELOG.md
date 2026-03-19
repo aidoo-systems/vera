@@ -13,6 +13,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **License enforcement middleware** — graduated enforcement based on Hub's `enforcement_level`
+  - **Soft enforcement** — uploads blocked (402) when license expired; existing documents remain viewable and exportable
+  - **Hard enforcement** — all endpoints blocked (402) except `/health`, auth endpoints, and static files
+  - Grace and licensed modes allow full access
+- `GET /api/license/status` proxy endpoint — frontend can check enforcement level
+- Hub client now returns `enforcement_level`, `days_until_expiry`, and `grace_days_remaining` from license status
 - **Celery Beat service** in `docker-compose.yml` for stuck-task recovery scheduling
 - **Worker Docker healthcheck** via `celery inspect ping`
 - `LOG_LEVEL` env var to control logging verbosity (default: `INFO`, was hardcoded to `DEBUG`)

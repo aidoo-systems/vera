@@ -51,9 +51,16 @@ _license_cache: dict | None = None
 _license_cache_time: float = 0
 _LICENSE_CACHE_TTL = 3600  # 1 hour
 
+# Allowed paths that bypass enforcement even in hard lockdown
+_ALWAYS_ALLOWED_PATHS = frozenset({"/health", "/metrics", "/api/auth/login", "/api/auth/logout", "/api/auth/status", "/api/csrf-token"})
+
 
 def check_license() -> dict:
-    """Check license status from Hub. Cached for 1 hour."""
+    """Check license status from Hub. Cached for 1 hour.
+
+    Returns dict with 'valid', 'products', 'seats', 'customer', 'tier',
+    'enforcement_level', 'days_until_expiry', 'grace_days_remaining', 'error'.
+    """
     global _license_cache, _license_cache_time
 
     if _license_cache and (time.time() - _license_cache_time) < _LICENSE_CACHE_TTL:
@@ -63,7 +70,7 @@ def check_license() -> dict:
     hub_key = _get_hub_api_key()
 
     if not hub_url or not hub_key:
-        result = {"valid": False, "error": "Hub not configured", "products": [], "seats": 0}
+        result = {"valid": False, "error": "Hub not configured", "products": [], "seats": 0, "enforcement_level": "grace"}
         _license_cache = result
         _license_cache_time = time.time()
         return result
@@ -76,6 +83,9 @@ def check_license() -> dict:
         )
         if resp.status_code == 200:
             result = resp.json()
+            # Ensure enforcement_level is present (backward compat with older Hub)
+            if "enforcement_level" not in result:
+                result["enforcement_level"] = "licensed" if result.get("valid") else "soft"
             _license_cache = result
             _license_cache_time = time.time()
             return result
@@ -84,10 +94,22 @@ def check_license() -> dict:
         if _license_cache:
             return _license_cache
 
-    result = {"valid": False, "error": "License check failed", "products": [], "seats": 0}
+    result = {"valid": False, "error": "License check failed", "products": [], "seats": 0, "enforcement_level": "grace"}
     _license_cache = result
     _license_cache_time = time.time()
     return result
+
+
+def get_enforcement_level() -> str:
+    """Get cached enforcement level. Returns 'grace' if not yet checked."""
+    if _license_cache:
+        return _license_cache.get("enforcement_level", "grace")
+    return "grace"
+
+
+def is_path_enforcement_exempt(path: str) -> bool:
+    """Check if a request path is exempt from license enforcement."""
+    return path in _ALWAYS_ALLOWED_PATHS or path.startswith("/files/") or path.startswith("/static/")
 
 
 def validate_with_hub(username: str, password: str) -> dict | None:
