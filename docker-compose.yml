@@ -174,6 +174,8 @@ services:
   frontend:
     build: ./frontend
     environment:
+      - HOSTNAME=0.0.0.0
+      - PORT=3000
       - FRONTEND_PORT=${FRONTEND_PORT:-3000}
       - NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL:-http://localhost:4000}
     ports:
