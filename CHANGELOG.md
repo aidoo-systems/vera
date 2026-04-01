@@ -7,14 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-04-01
+
 ### Security
 
 - Session cookie now sets `secure=true` by default (configurable via `SECURE_COOKIES` env var)
+- **`HubUnavailableError`** — Hub outage at login now returns 503 ("Authentication service unavailable") instead of 401 ("Invalid credentials"), preventing user confusion and potential credential-stuffing loops
 
 ### Added
 
 - **License enforcement middleware** — graduated enforcement based on Hub's `enforcement_level`
-  - **Soft enforcement** — uploads blocked (402) when license expired; existing documents remain viewable and exportable
+  - **Soft enforcement** — uploads, validation, and summary endpoints blocked (402) when license expired; existing documents remain viewable and exportable
   - **Hard enforcement** — all endpoints blocked (402) except `/health`, auth endpoints, and static files
   - Grace and licensed modes allow full access
 - `GET /api/license/status` proxy endpoint — frontend can check enforcement level
@@ -23,12 +26,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Worker Docker healthcheck** via `celery inspect ping`
 - `LOG_LEVEL` env var to control logging verbosity (default: `INFO`, was hardcoded to `DEBUG`)
 - `SECURE_COOKIES` env var to control session cookie `Secure` flag
+- **Docker entrypoint** — `backend/scripts/entrypoint.sh` auto-runs `alembic upgrade head` before starting uvicorn; handles pre-existing databases gracefully via stamp-and-retry
+- **Credential cache** — HMAC-keyed Redis cache (4-hour TTL) allows re-login during Hub outages without storing plaintext credentials
+- **Validation status guard** — corrections endpoint returns 409 if document is not in `ocr_done` or `review_in_progress` state
+- **VERA backup size validation** — `scripts/backup.sh` now fails fast if `pg_dump` produces an empty/corrupt file
+
+### Changed
+
+- **License enforcement default hardened** — cold-cache fallback on Hub outage changed from `grace` (full access) to `soft` (read-only)
+- **Soft mode extended** — validation and summary endpoints now blocked in soft enforcement mode (previously: uploads only)
 
 ### Fixed
 
 - Default logging level changed from `DEBUG` to `INFO` — prevents excessive log output in production
 - SSE status stream (`/documents/{id}/status/stream`) now terminates when document reaches a terminal status (`ocr_done`, `validated`, `summarized`, `exported`, `failed`, `canceled`)
 - Re-export bug: documents in `exported` status can now be re-exported (was blocked by missing status check)
+- **Summary status ordering** — document status set to `summarized` only after successful LLM call; reverts to `validated` on failure, preventing documents getting stuck with no summary data
+- **`logger` placement** — moved `logger` declaration to module top in `validation.py` and `summary.py` (was defined after the functions that use it)
+- **Login page layout** — added missing `login-container`, `login-card`, `login-header`, `login-subtitle` CSS classes; login screen now renders as a centred card on desktop
+- **Frontend TypeScript build** — added `typescript`, `@types/react`, `@types/react-dom`, `@types/node` to `devDependencies` and updated `tsconfig.json`; fixes Docker build failure caused by Next.js auto-installing TypeScript at build time and reconfiguring `tsconfig.json`
+- CI: backend coverage floor enforced at 66% (`--cov-fail-under=66`); `pytest-cov` added to `requirements.txt`
 
 ## [1.3.0] - 2026-03-18
 
@@ -143,6 +160,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Prometheus metrics at `GET /metrics`; request IDs echoed in `X-Request-ID`
 - Full backend test suite (`pytest`) and frontend component tests (Vitest)
 
+[1.4.0]: https://github.com/aidoo-systems/vera/compare/v1.3.0...v1.4.0
+[1.3.0]: https://github.com/aidoo-systems/vera/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/aidoo-systems/vera/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/aidoo-systems/vera/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/aidoo-systems/vera/releases/tag/v1.0.0

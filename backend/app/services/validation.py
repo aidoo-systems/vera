@@ -11,6 +11,8 @@ from app.models.documents import AuditLog, Correction, Document, DocumentPage, T
 from app.schemas.documents import DocumentStatus
 from app.utils.time import utcnow
 
+logger = logging.getLogger("vera.validation")
+
 
 def apply_corrections(
     document_id: str,
@@ -27,6 +29,8 @@ def apply_corrections(
         document = session.get(Document, document_id)
         if document is None:
             raise ValueError("document_not_found")
+        if document.status not in (DocumentStatus.ocr_done.value, DocumentStatus.review_in_progress.value):
+            raise ValueError("invalid_document_status")
         logger.debug("Apply corrections document_id=%s", document_id)
 
         tokens = session.execute(
@@ -138,7 +142,6 @@ def apply_corrections(
         session.commit()
 
     return validated_text, status_value, validated_at
-logger = logging.getLogger("vera.validation")
 
 
 def apply_page_corrections(
@@ -161,6 +164,8 @@ def apply_page_corrections(
             raise ValueError("document_not_found")
         if page_version is None:
             raise ValueError("version_required")
+        if document.status not in (DocumentStatus.ocr_done.value, DocumentStatus.review_in_progress.value):
+            raise ValueError("invalid_document_status")
         logger.debug("Apply page corrections document_id=%s page_id=%s", document_id, page_id)
 
         tokens = session.execute(

@@ -15,6 +15,8 @@ from app.models.documents import AuditLog, Document, DocumentPage
 from app.schemas.documents import DocumentStatus
 from app.utils.metrics import SUMMARY_DURATION, SUMMARY_LLM_FAILURES
 
+logger = logging.getLogger("vera.summary")
+
 _RULES_CACHE: dict = {}
 
 
@@ -456,25 +458,24 @@ def build_summary(document_id: str, model_override: str | None = None) -> dict:
         ).scalar_one()
         validated_text = validated_text if validated_text is not None else ""
 
-        session.execute(
-            update(Document)
-            .where(Document.id == document_id)
-            .values(status=DocumentStatus.summarized.value)
+    try:
+        bullet_summary, structured_fields = _build_summary_from_text(
+            validated_text,
+            model_override,
+            doc_type_override=doc_type_override,
+            locale_override=locale_override,
         )
-        session.commit()
-
-    bullet_summary, structured_fields = _build_summary_from_text(
-        validated_text,
-        model_override,
-        doc_type_override=doc_type_override,
-        locale_override=locale_override,
-    )
+    except Exception:
+        SUMMARY_LLM_FAILURES.labels("document").inc()
+        logger.exception("Summary LLM call failed for document_id=%s", document_id)
+        raise
 
     with get_session() as session:
         session.execute(
             update(Document)
             .where(Document.id == document_id)
             .values(
+                status=DocumentStatus.summarized.value,
                 structured_fields=json.dumps(structured_fields),
                 doc_type=structured_fields.get("doc_type"),
                 locale=structured_fields.get("locale"),
@@ -510,20 +511,22 @@ def build_page_summary(document_id: str, page_id: str, model_override: str | Non
             raise ValueError("page_not_validated")
 
         validated_text = page.validated_text or ""
-        session.execute(
-            update(DocumentPage)
-            .where(DocumentPage.id == page_id)
-            .values(status=DocumentStatus.summarized.value)
-        )
-        session.commit()
 
-    bullet_summary, structured_fields = _build_summary_from_text(validated_text, model_override)
+    try:
+        bullet_summary, structured_fields = _build_summary_from_text(validated_text, model_override)
+    except Exception:
+        SUMMARY_LLM_FAILURES.labels("page").inc()
+        logger.exception("Summary LLM call failed for document_id=%s page_id=%s", document_id, page_id)
+        raise
 
     with get_session() as session:
         session.execute(
             update(DocumentPage)
             .where(DocumentPage.id == page_id)
-            .values(structured_fields=json.dumps(structured_fields))
+            .values(
+                status=DocumentStatus.summarized.value,
+                structured_fields=json.dumps(structured_fields),
+            )
         )
         session.add(
             AuditLog(
@@ -542,4 +545,3 @@ def build_page_summary(document_id: str, page_id: str, model_override: str | Non
         "structured_fields": structured_fields,
         "validation_status": DocumentStatus.validated,
     }
-logger = logging.getLogger("vera.summary")

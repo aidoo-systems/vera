@@ -14,10 +14,10 @@ COPY alembic.ini ./
 COPY alembic ./alembic
 COPY scripts ./scripts
 
-RUN chown -R vera:vera /app
+RUN chown -R vera:vera /app && chmod +x /app/scripts/entrypoint.sh
 
 ENV PYTHONUNBUFFERED=1
 EXPOSE 8000
 
 USER vera
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--log-level", "info", "--access-log"]
+CMD ["/app/scripts/entrypoint.sh"]

@@ -2,7 +2,7 @@
 
 Upload scanned receipts/invoices, OCR extracts text, user reviews and corrects low-confidence tokens, validates, then exports. AI summaries optional via Ollama.
 
-**Version:** v1.3.0
+**Version:** v1.4.0
 
 ## Build & Run
 

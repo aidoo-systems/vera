@@ -1,5 +1,5 @@
 /* ============================================
-   PIKA Design System
+   ai.doo Design System
    Clean, minimal aesthetic inspired by Linear/Notion
    ============================================ */
 
@@ -269,6 +269,17 @@ body {
 .btn-ghost:hover {
     background: var(--bg-tertiary);
     color: var(--text-primary);
+}
+
+.btn-destructive {
+    background: var(--error);
+    color: var(--text-inverse);
+    border-color: var(--error);
+}
+
+.btn-destructive:hover {
+    background: #dc2626;
+    border-color: #dc2626;
 }
 
 .btn-danger {
@@ -1391,4 +1402,35 @@ input:focus-visible, textarea:focus-visible, select:focus-visible { outline-offs
     font-size: 16px;
     color: var(--text-secondary);
     margin-bottom: var(--space-6);
+}
+
+/* Login page */
+.login-container {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--space-4);
+    background: var(--bg-primary);
+}
+
+.login-card {
+    width: 100%;
+    max-width: 420px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-primary);
+    border-radius: var(--radius-lg);
+    padding: var(--space-8);
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
+}
+
+.login-header {
+    text-align: center;
+    margin-bottom: var(--space-6);
+}
+
+.login-subtitle {
+    margin-top: var(--space-2);
+    font-size: 14px;
+    color: var(--text-secondary);
 }
