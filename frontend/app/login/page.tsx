@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { ThemeToggle } from "../../components/ThemeToggle";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:4000";
 
@@ -37,21 +38,14 @@ export default function LoginPage() {
   }
 
   return (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        minHeight: "100vh",
-        background: "var(--bg-secondary)",
-      }}
-    >
-      <div className="card" style={{ width: "100%", maxWidth: 400, padding: "var(--space-8)" }}>
-        <div style={{ textAlign: "center", marginBottom: "var(--space-6)" }}>
-          <span className="logo" style={{ fontSize: 24 }}>VERA</span>
-          <p style={{ color: "var(--text-secondary)", fontSize: 14, marginTop: "var(--space-2)" }}>
-            Sign in to continue
-          </p>
+    <div className="login-container">
+      <div style={{ position: "absolute", top: 16, right: 16 }}>
+        <ThemeToggle />
+      </div>
+      <div className="login-card">
+        <div className="login-header">
+          <span className="logo">VERA</span>
+          <p className="login-subtitle">Sign in to continue</p>
         </div>
 
         {error && (

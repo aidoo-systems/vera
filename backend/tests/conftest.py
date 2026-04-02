@@ -19,3 +19,24 @@ def _disable_auth():
     app.dependency_overrides[require_auth] = lambda: None
     yield
     app.dependency_overrides.pop(require_auth, None)
+
+
+@pytest.fixture(autouse=True)
+def _stub_license_enforcement():
+    """Stub license enforcement to 'grace' (full access) in all tests.
+
+    Without this, the cold-cache default of 'soft' would cause all mutating
+    endpoints to return 402, breaking unrelated tests.
+    """
+    import app.services.auth as auth_module
+
+    original_cache = auth_module._license_cache
+    original_time = auth_module._license_cache_time
+
+    auth_module._license_cache = {"enforcement_level": "grace", "valid": True}
+    auth_module._license_cache_time = float("inf")
+
+    yield
+
+    auth_module._license_cache = original_cache
+    auth_module._license_cache_time = original_time

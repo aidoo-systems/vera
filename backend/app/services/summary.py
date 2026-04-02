@@ -51,6 +51,25 @@ def _detect_locale(lines: list[str]) -> str:
     return "US"
 
 
+def _extract_currency_code(amounts_text: str, locale: str = "US") -> str | None:
+    """Detect ISO 4217 currency code from a string of extracted amounts.
+
+    Explicit ISO codes (USD, EUR, GBP, AUD, CAD) take priority over symbols.
+    Dollar sign is locale-dependent: EU locale → USD is less likely, but we still
+    default to USD for $ since AUD/CAD would normally appear as explicit codes.
+    """
+    m = re.search(r"\b(USD|EUR|GBP|AUD|CAD)\b", amounts_text, re.IGNORECASE)
+    if m:
+        return m.group(1).upper()
+    if "£" in amounts_text:
+        return "GBP"
+    if "€" in amounts_text:
+        return "EUR"
+    if "$" in amounts_text:
+        return "USD"
+    return None
+
+
 
 def _build_summary_from_text(
     validated_text: str,
@@ -322,9 +341,9 @@ def _build_summary_from_text(
             summary_text = f"{summary_text}..."
         return summary_text or "No text detected"
 
-    pick_vendor(lines)
+    vendor_name = pick_vendor(lines)
     pick_total(lines)
-    pick_items(lines)
+    line_items = pick_items(lines)
 
     detailed_summary = None
     if model_override:
@@ -431,6 +450,9 @@ def _build_summary_from_text(
         "keywords": keyword_text,
         "doc_type": doc_type,
         "locale": locale,
+        "vendor_name": vendor_name or "",
+        "line_items": json.dumps(line_items),
+        "currency_code": _extract_currency_code(amount_text, locale=locale) or "",
     }
 
     return bullet_summary, structured_fields

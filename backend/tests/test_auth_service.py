@@ -15,6 +15,7 @@ from app.services import auth as auth_module
 from app.services.auth import (
     CSRF_PREFIX,
     CSRF_TOKEN_MAX_AGE,
+    HubUnavailableError,
     SESSION_MAX_AGE,
     SESSION_PREFIX,
     _LICENSE_CACHE_TTL,
@@ -240,7 +241,7 @@ class TestValidateWithHub:
 
         assert result is None
 
-    def test_unexpected_status_returns_none(self, monkeypatch):
+    def test_unexpected_status_raises_hub_unavailable(self, monkeypatch):
         monkeypatch.setenv("HUB_BASE_URL", "http://hub:2000")
         monkeypatch.setenv("HUB_AUTH_API_KEY", "test-key")
 
@@ -248,9 +249,9 @@ class TestValidateWithHub:
         mock_resp.status_code = 500
 
         with patch("app.services.auth.httpx.post", return_value=mock_resp):
-            result = validate_with_hub("alice", "password")
-
-        assert result is None
+            with patch("app.services.auth._check_credential_cache", return_value=None):
+                with pytest.raises(HubUnavailableError):
+                    validate_with_hub("alice", "password")
 
     def test_hub_not_configured_returns_none(self, monkeypatch):
         monkeypatch.delenv("HUB_BASE_URL", raising=False)
@@ -259,23 +260,23 @@ class TestValidateWithHub:
             result = validate_with_hub("alice", "password")
         assert result is None
 
-    def test_network_error_returns_none(self, monkeypatch):
+    def test_network_error_raises_hub_unavailable(self, monkeypatch):
         monkeypatch.setenv("HUB_BASE_URL", "http://hub:2000")
         monkeypatch.setenv("HUB_AUTH_API_KEY", "test-key")
 
         with patch("app.services.auth.httpx.post", side_effect=httpx.ConnectError("connection refused")):
-            result = validate_with_hub("alice", "password")
+            with patch("app.services.auth._check_credential_cache", return_value=None):
+                with pytest.raises(HubUnavailableError):
+                    validate_with_hub("alice", "password")
 
-        assert result is None
-
-    def test_timeout_returns_none(self, monkeypatch):
+    def test_timeout_raises_hub_unavailable(self, monkeypatch):
         monkeypatch.setenv("HUB_BASE_URL", "http://hub:2000")
         monkeypatch.setenv("HUB_AUTH_API_KEY", "test-key")
 
         with patch("app.services.auth.httpx.post", side_effect=httpx.TimeoutException("timed out")):
-            result = validate_with_hub("alice", "password")
-
-        assert result is None
+            with patch("app.services.auth._check_credential_cache", return_value=None):
+                with pytest.raises(HubUnavailableError):
+                    validate_with_hub("alice", "password")
 
 
 # ---------------------------------------------------------------------------
