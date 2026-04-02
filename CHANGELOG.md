@@ -7,6 +7,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-04-02
+
+### Added
+
+- **Invoice export** — validated documents can be exported in five formats via `GET /documents/{id}/export?format=<fmt>`:
+  - `json` (default) — full structured data
+  - `txt` — plain extracted text
+  - `csv` — token-level data table
+  - `facturx` — Factur-X MINIMUM XML (EN 16931 CII syntax; profile `urn:factur-x.eu:1p0:minimum`)
+  - `ubl` — UBL 2.1 Invoice XML (ISO/IEC 19845, PEPPOL-compatible)
+  - Missing mandatory fields (EN 16931 BT-1 through BT-112) reported in `X-VERA-Warnings` response header
+  - Per-page export at `GET /documents/{id}/pages/{page_id}/export`
+  - Export transitions document status to `exported`
+- **LLM routes**:
+  - `GET /documents/{id}/summary` and `GET /documents/{id}/pages/{page_id}/summary` — AI summaries via configured Ollama model
+  - `GET /llm/models` — list available Ollama models
+  - `GET /llm/health` — check Ollama reachability
+  - `POST /llm/models/pull` — pull a model synchronously
+  - `POST /llm/models/pull/stream` — pull a model with streaming NDJSON progress
+- **Frontend auth components**:
+  - `AuthProvider` — global auth state with CSRF token management; wraps the Next.js root layout
+  - `AppHeader` — displays username, logout button, and theme toggle; only renders when authenticated
+  - Login page: network-resilient error handling, all fetches include `credentials: "include"`
+- 51 new invoice export tests; 44 frontend component tests (`AuthProvider`, `CorrectionEditor`, `TokenList`); 150 backend tests total
+
+### Changed
+
+- API routes refactored into dedicated modules: `export.py`, `license.py`, `llm.py`; shared dependencies extracted to `deps.py`
+- `_extract_currency_code` extracted from `summary.py` and shared with `invoice_export.py`
+- Line items stored as JSON in structured fields, enabling structured invoice export
+
+### Dependencies
+
+- `lxml>=5.2.0` added for Factur-X and UBL XML generation
+
 ## [1.4.0] - 2026-04-01
 
 ### Security
