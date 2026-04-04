@@ -4,12 +4,15 @@ import asyncio
 import json
 import logging
 import os
+import re
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import JSONResponse, StreamingResponse
 
-from app.middleware.auth import require_auth
+from app.middleware.auth import require_admin, require_auth
+
+_MODEL_NAME_RE = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9._:/-]*$")
 from app.services.ollama import list_models, pull_model, stream_pull_model
 from app.services.summary import build_summary, build_page_summary
 
@@ -66,10 +69,12 @@ async def get_llm_health(_auth=Depends(require_auth)):
 
 
 @router.post("/llm/models/pull")
-async def pull_llm_model(payload: dict, _auth=Depends(require_auth)):
+async def pull_llm_model(payload: dict, _auth=Depends(require_admin)):
     model = str(payload.get("model", "")).strip()
     if not model:
         raise HTTPException(status_code=400, detail="Model name is required")
+    if not _MODEL_NAME_RE.match(model):
+        raise HTTPException(status_code=400, detail="Invalid model name")
     try:
         result = pull_model(model)
     except httpx.HTTPError:
@@ -78,10 +83,12 @@ async def pull_llm_model(payload: dict, _auth=Depends(require_auth)):
 
 
 @router.post("/llm/models/pull/stream")
-async def pull_llm_model_stream(payload: dict, _auth=Depends(require_auth)):
+async def pull_llm_model_stream(payload: dict, _auth=Depends(require_admin)):
     model = str(payload.get("model", "")).strip()
     if not model:
         raise HTTPException(status_code=400, detail="Model name is required")
+    if not _MODEL_NAME_RE.match(model):
+        raise HTTPException(status_code=400, detail="Invalid model name")
 
     def event_stream():
         try:

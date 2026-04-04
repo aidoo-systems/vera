@@ -202,6 +202,62 @@ def validate_with_hub(username: str, password: str) -> dict | None:
         raise HubUnavailableError(str(exc)) from exc
 
 
+USER_STATUS_PREFIX = "vera:userstatus:"
+USER_STATUS_TTL = 300  # 5 minutes
+
+
+def check_user_active(username: str) -> bool:
+    """Check if a user is still active in Hub. Cached in Redis for 5 minutes.
+
+    Returns True if active (or if Hub is unreachable — fail-open).
+    Returns False if Hub confirms the user is disabled/deleted.
+    """
+    # Check Redis cache first
+    try:
+        r = _get_redis()
+        raw = r.get(f"{USER_STATUS_PREFIX}{username}")
+        if raw:
+            data = json.loads(raw)
+            return data.get("is_active", True)
+    except Exception:
+        pass
+
+    hub_url = _get_hub_base_url()
+    hub_key = _get_hub_api_key()
+    if not hub_url or not hub_key:
+        return True
+
+    try:
+        resp = httpx.get(
+            f"{hub_url}/api/auth/user-status/{username}",
+            headers={"Authorization": f"Bearer {hub_key}"},
+            timeout=5.0,
+        )
+        if resp.status_code == 200:
+            data = resp.json()
+            is_active = data.get("is_active", True)
+            try:
+                r = _get_redis()
+                r.setex(f"{USER_STATUS_PREFIX}{username}", USER_STATUS_TTL, json.dumps(data))
+            except Exception:
+                pass
+            if not is_active:
+                logger.warning("User '%s' has been disabled in Hub", username)
+            return is_active
+        elif resp.status_code == 404:
+            logger.warning("User '%s' not found in Hub — treating as inactive", username)
+            try:
+                r = _get_redis()
+                r.setex(f"{USER_STATUS_PREFIX}{username}", USER_STATUS_TTL, json.dumps({"is_active": False}))
+            except Exception:
+                pass
+            return False
+    except httpx.HTTPError as exc:
+        logger.error("User status check failed: %s — fail-open for '%s'", exc, username)
+
+    return True
+
+
 def create_session(user_data: dict) -> str:
     """Create a new session in Redis. Returns session ID."""
     session_id = secrets.token_urlsafe(32)

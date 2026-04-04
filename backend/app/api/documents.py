@@ -372,6 +372,50 @@ async def get_document_page(document_id: str, page_id: str, _auth=Depends(requir
         )
 
 
+@router.post("/documents/{document_id}/reopen")
+async def reopen_document(document_id: str, _auth=Depends(require_auth)):
+    """Reopen a validated/exported document for further review."""
+    logger.info("Reopen requested document_id=%s", document_id)
+    reopenable = {
+        DocumentStatus.validated.value,
+        DocumentStatus.summarized.value,
+        DocumentStatus.exported.value,
+    }
+    with get_session() as session:
+        document = session.get(Document, document_id)
+        if document is None:
+            raise HTTPException(status_code=404, detail="Document not found")
+
+        if document.status not in reopenable:
+            raise HTTPException(
+                status_code=409,
+                detail=f"Cannot reopen document in '{document.status}' status",
+            )
+
+        session.execute(
+            update(Document)
+            .where(Document.id == document_id)
+            .values(status=DocumentStatus.review_in_progress.value, review_complete_at=None)
+        )
+        # Reset page review flags so the reviewer sees them again
+        session.execute(
+            update(DocumentPage)
+            .where(DocumentPage.document_id == document_id)
+            .values(review_complete_at=None)
+        )
+        session.add(
+            AuditLog(
+                id=os.urandom(16).hex(),
+                document_id=document_id,
+                event_type="document_reopened",
+                detail=json.dumps({"previous_status": document.status}),
+            )
+        )
+        session.commit()
+
+    return JSONResponse({"status": DocumentStatus.review_in_progress.value, "document_id": document_id})
+
+
 @router.post("/documents/{document_id}/cancel")
 async def cancel_document(document_id: str, _auth=Depends(require_auth)):
     logger.info("Cancel requested document_id=%s", document_id)

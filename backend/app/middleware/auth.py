@@ -23,19 +23,20 @@ EXEMPT_PREFIXES = (
 )
 
 
-def require_auth(request: Request) -> None:
+def require_auth(request: Request) -> dict | None:
     """FastAPI dependency that requires authentication.
 
     Raises HTTPException(401) if not authenticated.
+    Returns the session dict so downstream deps can inspect role, etc.
     """
     path = request.url.path
 
     # Skip auth for exempt paths
     if path in EXEMPT_PATHS:
-        return
+        return None
     for prefix in EXEMPT_PREFIXES:
         if path.startswith(prefix):
-            return
+            return None
 
     session_id = request.cookies.get("vera_session")
     if not session_id:
@@ -44,3 +45,18 @@ def require_auth(request: Request) -> None:
     session = get_session(session_id)
     if not session:
         raise HTTPException(status_code=401, detail="Session expired")
+
+    return session
+
+
+def require_admin(request: Request) -> dict:
+    """FastAPI dependency that requires admin role.
+
+    Raises HTTPException(401) if not authenticated, 403 if not admin.
+    """
+    session = require_auth(request)
+    if not session:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    if session.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin role required")
+    return session
