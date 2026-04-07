@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import os
 import uuid
 
 import pytest
@@ -14,8 +13,6 @@ from app.services.invoice_export import (
     _clean_amount,
     _coerce,
     _parse_date,
-    _split_first,
-    _split_last,
     build_invoice_data,
     to_facturx_xml,
     to_ubl_xml,

@@ -11,10 +11,10 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from app.middleware.auth import require_admin, require_auth
-
-_MODEL_NAME_RE = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9._:/-]*$")
 from app.services.ollama import list_models, pull_model, stream_pull_model
 from app.services.summary import build_summary, build_page_summary
+
+_MODEL_NAME_RE = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9._:/-]*$")
 
 logger = logging.getLogger("vera")
 router = APIRouter()

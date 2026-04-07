@@ -18,7 +18,6 @@ from datetime import datetime
 from lxml import etree
 
 from app.schemas.invoice import InvoiceData
-from app.services.summary import _extract_currency_code  # reuse — avoids duplication
 
 _SENTINEL = "Not detected"
 

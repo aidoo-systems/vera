@@ -1,12 +1,10 @@
 """Shared dependencies for route modules."""
 
-import json
 import logging
 import os
 
 from sqlalchemy import func, select
 
-from app.db.session import get_session
 from app.models.documents import DocumentPage, Token
 
 logger = logging.getLogger("vera")

@@ -8,7 +8,7 @@ import os
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import JSONResponse, PlainTextResponse, Response
-from sqlalchemy import select, update
+from sqlalchemy import update
 
 from app.db.session import get_session
 from app.middleware.auth import require_auth
