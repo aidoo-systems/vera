@@ -18,6 +18,7 @@ from slowapi.util import get_remote_address
 from slowapi.middleware import SlowAPIMiddleware
 from slowapi import _rate_limit_exceeded_handler
 from sqlalchemy import text as sql_text
+from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.api import auth_router, documents_router, export_router, license_router, llm_router
 from app.services.auth import check_license
@@ -89,17 +90,6 @@ limiter = Limiter(key_func=get_remote_address)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-cors_origins = os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",")
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[origin.strip() for origin in cors_origins if origin.strip()],
-    allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allow_headers=["Content-Type", "X-Request-ID", "X-API-Key", "X-CSRF-Token"],
-)
-app.add_middleware(SlowAPIMiddleware)
-app.add_middleware(CSRFMiddleware)
-
 data_dir = os.getenv("DATA_DIR", "./data")
 app.mount("/files", StaticFiles(directory=data_dir), name="files")
 
@@ -118,7 +108,6 @@ app.include_router(license_router)
 # ---------------------------------------------------------------------------
 
 
-@app.middleware("http")
 async def log_requests(request: Request, call_next):
     start_time = time.time()
     request_id = request.headers.get("x-request-id", uuid.uuid4().hex)
@@ -143,10 +132,15 @@ async def log_requests(request: Request, call_next):
     return response
 
 
-@app.middleware("http")
 async def license_enforcement_middleware(request: Request, call_next):
     """Block write operations when license is in soft/hard enforcement."""
     from app.services.auth import get_enforcement_level, is_path_enforcement_exempt
+
+    # Defensive: never intercept CORS preflight requests. CORSMiddleware (added
+    # last and therefore wrapping us) handles OPTIONS itself, but if anything
+    # ever bypasses it, we still want preflights to fall through cleanly.
+    if request.method == "OPTIONS":
+        return await call_next(request)
 
     path = request.url.path
     if is_path_enforcement_exempt(path):
@@ -174,6 +168,29 @@ async def license_enforcement_middleware(request: Request, call_next):
             return JSONResponse(status_code=402, content=_soft_blocked_message)
 
     return await call_next(request)
+
+
+# ---------------------------------------------------------------------------
+# Middleware stack — order matters!
+# In Starlette, the LAST add_middleware call becomes the OUTERMOST wrapper
+# (runs first on the request, last on the response). CORSMiddleware must be
+# outermost so its headers are added to every response — including 402 short-
+# circuits from the license middleware. Otherwise the browser sees no
+# Access-Control-Allow-Origin header on the 402 and reports "failed to fetch".
+# ---------------------------------------------------------------------------
+cors_origins = os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",")
+
+app.add_middleware(BaseHTTPMiddleware, dispatch=license_enforcement_middleware)
+app.add_middleware(BaseHTTPMiddleware, dispatch=log_requests)
+app.add_middleware(SlowAPIMiddleware)
+app.add_middleware(CSRFMiddleware)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[origin.strip() for origin in cors_origins if origin.strip()],
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type", "X-Request-ID", "X-API-Key", "X-CSRF-Token"],
+)
 
 
 # ---------------------------------------------------------------------------

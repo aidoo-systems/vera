@@ -61,7 +61,7 @@ _license_cache_time: float = 0
 _LICENSE_CACHE_TTL = 3600  # 1 hour
 
 # Allowed paths that bypass enforcement even in hard lockdown
-_ALWAYS_ALLOWED_PATHS = frozenset({"/health", "/metrics", "/api/auth/login", "/api/auth/logout", "/api/auth/status", "/api/csrf-token"})
+_ALWAYS_ALLOWED_PATHS = frozenset({"/health", "/metrics", "/api/auth/login", "/api/auth/logout", "/api/auth/status", "/api/csrf-token", "/api/license/status"})
 
 
 def check_license() -> dict:
