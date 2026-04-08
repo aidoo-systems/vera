@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Document reopen endpoint** — `POST /documents/{id}/reopen` lets reviewers re-enter validation on a document after it has been validated, summarised, or exported
+- **Session revocation** — backend polls Hub every 5 minutes (Redis-cached) and invalidates sessions for users who have been disabled or deleted in Hub
+
+### Changed
+
+- **Admin gate on model management** — `POST /llm/models/pull` and `POST /llm/models/pull/stream` now require admin role, preventing non-admin users from triggering large model downloads
+
 ## [1.5.0] - 2026-04-02
 
 ### Added
