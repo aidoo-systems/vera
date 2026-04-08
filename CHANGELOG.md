@@ -16,6 +16,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Admin gate on model management** — `POST /llm/models/pull` and `POST /llm/models/pull/stream` now require admin role, preventing non-admin users from triggering large model downloads
 
+### Fixed
+
+- **License expiry surfaced as "failed to fetch" in the UI** — the license enforcement middleware was Starlette's outermost wrapper, so its 402 responses bypassed CORS on the way out and the browser rejected them with no `Access-Control-Allow-Origin` header. Reordered the middleware stack so `CORSMiddleware` is added last (= outermost), guaranteeing every response — including license short-circuits — is CORS-decorated. Also added `/api/license/status` to the always-allowed paths so the frontend can read license state even in hard lockdown
+
 ## [1.5.0] - 2026-04-02
 
 ### Added
