@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **Frontend license-expiry handling** — when Hub reports enforcement `hard`, the UI now renders a dedicated `LicenseExpiredScreen` (lockdown with sign-out) instead of leaving the user with a cryptic "failed to fetch" error. `soft` enforcement renders a persistent read-only banner above the app. `AuthProvider` polls `/api/license/status` every 60 seconds while authenticated, and any 402 response from a fetch call surfaces the screen immediately via a custom event. New `frontend/lib/api.ts` exposes `apiFetch()` — a thin wrapper that dispatches `vera:license-blocked` on 402 and is now used by every call site in `app/page.tsx` and `OllamaConsole.tsx`
+- **Hourly license cache refresh** — Celery Beat task (`vera.refresh_license_cache`) queries Hub every hour so revocations and enforcement changes propagate without restarting the backend. Previously the cache was one-shot at startup — if Hub was unreachable on cold start, VERA stayed in soft mode indefinitely
+- **`POST /internal/license/refresh`** — internal endpoint to force-refresh the license cache immediately, for use by ops tooling or Hub after a revocation. Exempt from license enforcement and CSRF
 - **Document reopen endpoint** — `POST /documents/{id}/reopen` lets reviewers re-enter validation on a document after it has been validated, summarised, or exported
 - **Session revocation** — backend polls Hub every 5 minutes (Redis-cached) and invalidates sessions for users who have been disabled or deleted in Hub
 

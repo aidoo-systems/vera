@@ -58,6 +58,10 @@ else:
             "task": "vera.recover_stuck_documents",
             "schedule": crontab(minute="*/5"),
         },
+        "refresh-license-cache": {
+            "task": "vera.refresh_license_cache",
+            "schedule": crontab(minute="0"),  # every hour, on the hour
+        },
     }
     if cleanup_interval_minutes > 0:
         beat_schedule["vera.cleanup_documents"] = {
@@ -173,6 +177,22 @@ def recover_stuck_documents() -> dict[str, int]:
         if stuck_docs:
             logger.warning("Recovered %d stuck document(s)", len(stuck_docs))
         return {"recovered": len(stuck_docs)}
+
+
+@celery_app.task(name="vera.refresh_license_cache")
+def refresh_license_cache() -> dict[str, str]:
+    """Refresh the license cache by querying Hub.
+
+    Runs hourly via Beat so that revocations and enforcement-level changes
+    propagate without restarting the backend.
+    """
+    from app.services.auth import refresh_license_cache as _refresh, check_license
+
+    _refresh()
+    status = check_license()
+    level = status.get("enforcement_level", "unknown")
+    logger.info("License cache refreshed: enforcement=%s", level)
+    return {"enforcement_level": level}
 
 
 @celery_app.task(name="vera.cleanup_documents")
