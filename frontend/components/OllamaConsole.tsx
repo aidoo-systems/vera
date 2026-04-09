@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { apiFetch } from "../lib/api";
 
 type OllamaConsoleProps = {
   apiBase: string;
@@ -39,7 +40,7 @@ export function OllamaConsole({ apiBase, selectedModel, onSelectModel, onToast, 
   const loadModels = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`${apiBase}/llm/models`, { credentials: "include" });
+      const response = await apiFetch(`${apiBase}/llm/models`, { credentials: "include" });
       if (!response.ok) {
         const message = await response.text();
         throw new Error(message || "Failed to load models");
@@ -68,7 +69,7 @@ export function OllamaConsole({ apiBase, selectedModel, onSelectModel, onToast, 
     setPullController(controller);
     try {
       const csrf = getCsrfHeaders ? await getCsrfHeaders() : {};
-      const response = await fetch(`${apiBase}/llm/models/pull/stream`, {
+      const response = await apiFetch(`${apiBase}/llm/models/pull/stream`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...csrf },
         credentials: "include",

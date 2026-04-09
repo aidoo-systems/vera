@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { apiFetch } from "../lib/api";
 import { CorrectionEditor } from "../components/CorrectionEditor";
 import { ImageOverlay, type TokenBox } from "../components/ImageOverlay";
 import { OllamaConsole } from "../components/OllamaConsole";
@@ -274,7 +275,7 @@ export default function HomePage() {
       const formData = new FormData();
       formData.append("file", file);
       const csrf = await getCsrfHeaders();
-      const response = await fetch(`${apiBase}/documents/upload`, {
+      const response = await apiFetch(`${apiBase}/documents/upload`, {
         method: "POST",
         body: formData,
         credentials: "include",
@@ -321,7 +322,7 @@ export default function HomePage() {
 
   const fetchPage = async (documentId: string, pageId: string) => {
     try {
-      const response = await fetch(`${apiBase}/documents/${documentId}/pages/${pageId}`, { credentials: "include" });
+      const response = await apiFetch(`${apiBase}/documents/${documentId}/pages/${pageId}`, { credentials: "include" });
       if (!response.ok) {
         const message = await getResponseMessage(response, "Failed to load page");
         throw new Error(message);
@@ -341,7 +342,7 @@ export default function HomePage() {
 
   const refreshDocument = async () => {
     if (!documentData) return;
-    const response = await fetch(`${apiBase}/documents/${documentData.document_id}`, { credentials: "include" });
+    const response = await apiFetch(`${apiBase}/documents/${documentData.document_id}`, { credentials: "include" });
     if (!response.ok) {
       const message = await getResponseMessage(response, "Failed to refresh document");
       throw new Error(message);
@@ -402,7 +403,7 @@ export default function HomePage() {
 
   const fetchPageStatuses = async () => {
     if (!documentData) return;
-    const response = await fetch(`${apiBase}/documents/${documentData.document_id}/pages/status`, { credentials: "include" });
+    const response = await apiFetch(`${apiBase}/documents/${documentData.document_id}/pages/status`, { credentials: "include" });
     if (!response.ok) {
       const message = await getResponseMessage(response, "Failed to load status");
       throw new Error(message);
@@ -507,7 +508,7 @@ export default function HomePage() {
     setError(null);
     try {
       const csrf = await getCsrfHeaders();
-      const response = await fetch(
+      const response = await apiFetch(
         `${apiBase}/documents/${documentData.document_id}/pages/${pageData.page_id}/validate`,
         {
           method: "POST",
@@ -556,7 +557,7 @@ export default function HomePage() {
       throw new Error("Select a model to generate AI summaries.");
     }
     const modelParam = useAi ? `?model=${encodeURIComponent(selectedModel)}` : "";
-    const summaryResponse = await fetch(
+    const summaryResponse = await apiFetch(
       `${apiBase}/documents/${documentData.document_id}/pages/${pageData.page_id}/summary${modelParam}`,
       { credentials: "include" }
     );
@@ -577,7 +578,7 @@ export default function HomePage() {
       throw new Error("Select a model to generate AI summaries.");
     }
     const modelParam = useAi ? `?model=${encodeURIComponent(selectedModel)}` : "";
-    const summaryResponse = await fetch(`${apiBase}/documents/${documentData.document_id}/summary${modelParam}`, { credentials: "include" });
+    const summaryResponse = await apiFetch(`${apiBase}/documents/${documentData.document_id}/summary${modelParam}`, { credentials: "include" });
     if (!summaryResponse.ok) {
       const message = await getResponseMessage(summaryResponse, "Summary failed");
       throw new Error(message);
@@ -592,7 +593,7 @@ export default function HomePage() {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch(`${apiBase}/documents/${documentData.document_id}/export?format=${format}`, { credentials: "include" });
+      const response = await apiFetch(`${apiBase}/documents/${documentData.document_id}/export?format=${format}`, { credentials: "include" });
       if (!response.ok) {
         const message = await getResponseMessage(response, "Export failed");
         throw new Error(message);
@@ -621,7 +622,7 @@ export default function HomePage() {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch(
+      const response = await apiFetch(
         `${apiBase}/documents/${documentData.document_id}/pages/${pageData.page_id}/export?format=${format}`,
         { credentials: "include" }
       );
@@ -738,7 +739,7 @@ export default function HomePage() {
 
   const fetchOllamaHealth = async () => {
     try {
-      const response = await fetch(`${apiBase}/llm/health`, { credentials: "include" });
+      const response = await apiFetch(`${apiBase}/llm/health`, { credentials: "include" });
       if (!response.ok) {
         throw new Error("Ollama is not reachable");
       }
@@ -802,7 +803,7 @@ export default function HomePage() {
     setError(null);
     try {
       const csrf = await getCsrfHeaders();
-      const response = await fetch(`${apiBase}/documents/${documentData.document_id}/cancel`, {
+      const response = await apiFetch(`${apiBase}/documents/${documentData.document_id}/cancel`, {
         method: "POST",
         credentials: "include",
         headers: csrf,
