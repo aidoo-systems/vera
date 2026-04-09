@@ -100,6 +100,29 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      - name: Scan backend image for vulnerabilities
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: ghcr.io/${{ github.repository }}-backend:latest
+          format: table
+          exit-code: "1"
+          severity: HIGH,CRITICAL
+
+      - name: Generate backend SBOM
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: ghcr.io/${{ github.repository }}-backend:latest
+          format: cyclonedx
+          output: backend-sbom.json
+
+      - name: Upload backend SBOM
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-sbom
+          path: backend-sbom.json
+
   build-frontend:
     needs: [frontend-tests]
     runs-on: ubuntu-latest
@@ -142,3 +165,26 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      - name: Scan frontend image for vulnerabilities
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: ghcr.io/${{ github.repository }}-frontend:latest
+          format: table
+          exit-code: "1"
+          severity: HIGH,CRITICAL
+
+      - name: Generate frontend SBOM
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: ghcr.io/${{ github.repository }}-frontend:latest
+          format: cyclonedx
+          output: frontend-sbom.json
+
+      - name: Upload frontend SBOM
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-sbom
+          path: frontend-sbom.json
