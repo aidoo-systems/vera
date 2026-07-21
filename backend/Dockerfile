@@ -4,8 +4,10 @@ WORKDIR /app
 
 COPY requirements.txt ./
 RUN apt-get update \
+    && apt-get upgrade -y \
     && apt-get install -y --no-install-recommends poppler-utils libgomp1 libglib2.0-0 libsm6 libxrender1 libxext6 libgl1 wget \
     && rm -rf /var/lib/apt/lists/* \
+    && pip install --no-cache-dir --upgrade pip setuptools wheel \
     && pip install --no-cache-dir -r requirements.txt \
     && useradd -r -u 1001 -m vera
 
