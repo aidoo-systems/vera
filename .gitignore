@@ -8,6 +8,8 @@ backend/tests/test_data/
 .env
 data/
 secrets/
+backend/.coverage
+frontend/tsconfig.tsbuildinfo
 
 # Claude Code
 .claude/settings.local.json
