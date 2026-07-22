@@ -108,6 +108,7 @@ jobs:
           exit-code: "1"
           severity: HIGH,CRITICAL
           ignore-unfixed: true
+          trivyignores: .trivyignore
 
       - name: Generate backend SBOM
         if: startsWith(github.ref, 'refs/tags/v')

@@ -1,0 +1,15 @@
+# Trivy ignore file — VERA
+#
+# Each entry MUST have a justification and a review date. Only vulnerabilities
+# that are genuinely blocked from remediation belong here; anything with a
+# viable upgrade path must be fixed, not suppressed.
+
+# --- opencv (transitive via paddleocr) --------------------------------------
+# GHSA-cxjf-x6jp-p7mc (opencv-contrib-python) and GHSA-qr4w-53vh-m672
+# (opencv-python) are fixed upstream in 4.8.1.78, but paddleocr==2.7.3 hard-caps
+# both to <=4.6.0.66, so the fix is unreachable without upgrading the OCR engine
+# itself (paddleocr 2.7 -> 3.x, a breaking change requiring full OCR validation).
+# Tracked as a dedicated follow-up: upgrade paddleocr, then remove these lines.
+# Added 2026-07-22. Review by 2026-10-22.
+GHSA-cxjf-x6jp-p7mc
+GHSA-qr4w-53vh-m672

@@ -15,9 +15,12 @@
   "license": "ISC",
   "type": "module",
   "dependencies": {
-    "next": "^14.2.12",
+    "next": "^15.5.21",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
+  },
+  "overrides": {
+    "sharp": "^0.35.3"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "^6.5.0",
